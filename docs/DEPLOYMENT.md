@@ -15,6 +15,24 @@ This guide covers deploying the Conversational AI Agent Studio to your AWS accou
 
 Deploy to **us-east-1** (N. Virginia) for full AgentCore + Nova 2 Sonic support.
 
+## Build the eval runner bundle (required before deploying)
+
+`VoiceAgentDemosStack` includes the eval-runner Lambda, whose code asset lives at
+`source/eval-runner/bundled/`. That directory is **generated** — if it's missing,
+`cdk synth`/`deploy` fails with `CannotFindAsset: Cannot find asset at
+.../source/eval-runner/bundled`. Build it once before deploying (and again
+whenever the eval runner or harness changes):
+
+```bash
+bash source/eval-runner/bundle.sh
+```
+
+The eval runner depends on the **nova-sonic-eval-harness**, which is vendored in
+the repo at `source/eval-runner/nova-sonic-eval-harness/` (MIT-0, from
+[aws-samples/sample-amazon-nova-sonic-eval-harness](https://github.com/aws-samples/sample-amazon-nova-sonic-eval-harness)).
+`bundle.sh` installs its dependencies and copies it into `bundled/` — no clone or
+network fetch of the harness is required.
+
 ## Quick Start (Full Deployment)
 
 ```bash
@@ -26,6 +44,9 @@ export CDK_INPUT_USER_EMAILS=user1@example.com,user2@example.com
 # Optional: set explicitly if not using default AWS profile
 export CDK_DEFAULT_ACCOUNT=<your-account-id>
 export CDK_DEFAULT_REGION=us-east-1
+
+# Build the eval runner Lambda bundle (see section above) before deploying
+bash source/eval-runner/bundle.sh
 
 cd deployment
 bash ./deploy.sh
@@ -108,42 +129,36 @@ bash deploy-frontend.sh
 
 ## Agent Runtime Deployment
 
-The agent runs on Bedrock AgentCore as a Python 3.12 runtime. The code is deployed from a pre-bundled package at `source/agent/deploy_package/`.
+The agent runs on Bedrock AgentCore as a Python 3.12 (Linux/ARM64) runtime.
 
-### Updating the deploy package
+`VoiceAgentAgentStack` builds the runtime bundle **automatically at deploy
+time** — there is no committed package to maintain by hand. On every deploy the
+stack (`deployment/agent_stack/agent_stack.py`):
 
-When you change `source/agent/main.py` or tools, copy to the deploy package:
+1. Recreates a clean `source/agent/package/` directory (a generated artifact,
+   not committed to git).
+2. Installs the agent's dependencies from `source/agent/requirements.txt` into
+   it, targeting `aarch64` / CPython 3.12 wheels (`--only-binary=:all:`).
+3. Copies the application code (`main.py`, `strands_agent.py`,
+   `call_history_logger.py`, `rag_tools.py`, and the `tools/` package) on top.
+4. Strips any `__pycache__` directories.
 
-```bash
-cp source/agent/main.py source/agent/deploy_package/main.py
-```
+### Changing the agent
 
-### Important: no `__pycache__`
-
-AgentCore rejects packages containing Python cache files compiled for a different platform. Always remove them before deploying:
-
-```bash
-find source/agent/deploy_package -type d -name "__pycache__" -exec rm -rf {} +
-```
-
-### Adding Python dependencies
-
-Install to the deploy package targeting Linux ARM64:
-
-```bash
-pip install --target source/agent/deploy_package --platform manylinux2014_aarch64 \
-    --only-binary=:all: --no-deps <package-name>
-
-# Remove cache files after install
-find source/agent/deploy_package -type d -name "__pycache__" -exec rm -rf {} +
-```
-
-Then deploy:
+Edit the source under `source/agent/` and redeploy — the bundle is rebuilt for
+you:
 
 ```bash
 cd deployment
 npx cdk deploy VoiceAgentAgentStack --require-approval never
 ```
+
+### Adding Python dependencies
+
+Add the package to `source/agent/requirements.txt` and redeploy. The stack pins
+`--platform manylinux2014_aarch64` (plus `manylinux_2_17`/`manylinux_2_28`) and
+`--python-version 3.12`, so only wheels compatible with the AgentCore runtime
+are installed. Manual `pip install --target` steps are not required.
 
 ## Environment Variables
 
@@ -155,16 +170,23 @@ npx cdk deploy VoiceAgentAgentStack --require-approval never
 | `MODEL_ID` | `amazon.nova-2-sonic-v1:0` | Nova Sonic model ID |
 | `VOICE` | `tiffany` | Default voice when not specified by client |
 
-### Frontend (set via `.env.local` or `setup-env.sh`)
+### Frontend (set via `.env.local`, `.env.production`, or `setup-env.sh`)
+
+`deploy.sh` writes these into `source/frontend/.env.production` automatically
+from the CloudFormation outputs. See `source/frontend/.env.example` for the full
+list.
 
 | Variable | Description |
 |----------|-------------|
-| `VITE_API_URL` | API Gateway endpoint for demos/tools/RAG |
+| `VITE_API_URL` | Demos/tools API Gateway endpoint |
+| `VITE_RAG_API_URL` | Knowledge Base / RAG API endpoint (same API as `VITE_API_URL`) |
 | `VITE_COGNITO_USER_POOL_ID` | Cognito User Pool ID |
 | `VITE_COGNITO_CLIENT_ID` | Cognito App Client ID |
 | `VITE_COGNITO_IDENTITY_POOL_ID` | Cognito Identity Pool ID |
-| `VITE_AGENTCORE_RUNTIME_ARN` | AgentCore Runtime ARN (empty = localhost) |
-| `VITE_REGION` | AWS region |
+| `VITE_COGNITO_DOMAIN` | Cognito hosted-UI domain (federated SSO; empty disables it) |
+| `VITE_AGENTCORE_RUNTIME_ARN` | AgentCore Runtime ARN (empty = connect to localhost) |
+| `VITE_AGENTCORE_WS_URL` | AgentCore WebSocket URL; local dev fallback `ws://localhost:8081/ws` |
+| `VITE_AWS_REGION` | AWS region |
 
 ## IAM Permissions
 

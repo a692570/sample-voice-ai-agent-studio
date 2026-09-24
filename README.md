@@ -1,6 +1,24 @@
 # Conversational AI Agent Studio
 
-Design, build, and deploy production-ready voice AI agents on AWS. A guided studio for configuring real-time speech agents — from industry template to live phone call — powered by Amazon Nova Sonic, Strands Agents BidiAgent, and Amazon Bedrock AgentCore.
+Design, build, and prototype voice AI agents on AWS. A guided studio for configuring real-time speech agents — from industry template to live phone call — powered by Amazon Nova Sonic, Strands Agents BidiAgent, and Amazon Bedrock AgentCore.
+
+> **Sample / proof-of-concept.** This project is a reference implementation for learning and prototyping. Review and harden it (security, error handling, scaling, cost controls) before using it for production workloads.
+
+## The Voice Agent Stack
+
+![Voice AI Agent Stack](assets/voice-ai-agent-stack.png)
+
+A real-time voice agent isn't a single model — it's a stack of decisions. Each layer is chosen independently, and the trade-offs at one layer ripple into the others:
+
+- **Model** — what hears, thinks, and speaks (speech-to-speech like Nova Sonic, or STT + LLM + TTS).
+- **Framework** — what orchestrates the session: streaming, turn detection, and tool calls (Strands BidiAgent, LiveKit, Pipecat).
+- **Integrations** — what the agent can actually do (knowledge bases/RAG, APIs, MCP, other agents).
+- **Channel** — how callers reach it: the protocol and transport (WebSocket, WebRTC, PSTN, SIP).
+- **Hosting** — where it runs and how it scales (managed runtimes, containers, on-prem).
+
+For the concepts behind these layers, see [Building Real-Time Voice Agents: Choosing Models, Frameworks, Protocols, and Hosting](https://medium.com/generative-ai/building-real-time-voice-agents-choosing-models-frameworks-protocols-and-hosting-5dc0a28f98e2).
+
+This studio turns those layers into a guided workflow: you pick a model and voice, wire up tools and RAG, choose a channel (browser, PSTN, or SIP), and deploy to a managed runtime on AWS — without hand-assembling the stack yourself. The current build uses Amazon Nova 2 Sonic (speech-to-speech) on the Strands BidiAgent framework, hosted on Amazon Bedrock AgentCore.
 
 ## Architecture
 
@@ -27,16 +45,21 @@ higher security review bar.
 - Live voice test with real-time transcript
 
 ### Speech & Reasoning
-- Bidirectional streaming — Nova 2 Sonic, OpenAI Realtime, Gemini Live
-- Cascaded pipeline — STT → LLM → TTS with per-stage model selection
+- Bidirectional streaming (speech-to-speech) — Amazon Nova 2 Sonic (OpenAI Realtime and Gemini Live are selectable in the UI but currently fall back to Nova Sonic)
 - Expert Tool mode — offload reasoning and tool calls from Nova Sonic to Claude/Nova Pro/Qwen3
 
 ### Integrations
-- Pre-built tools (knowledge base, CRM, calendar, transfer, payment, notifications)
+- Built-in reserved tools (end call, transfer to human) available to every agent
 - Custom tools defined in UI with mock responses
 - Webhooks, Lambda functions, AgentCore MCP gateways, AgentCore sub-agent runtimes
-- RAG via AgentCore Managed Knowledge Base with document upload
+- RAG against an existing Bedrock Knowledge Base, with document upload and data-source sync
 - Telephony — PSTN (Twilio) and direct SIP trunk (Genesys, Five9, NICE)
+
+### Evaluation
+- Eval suites — group reusable test cases (prompt, model, and simulated-caller scenarios) for an agent
+- LLM-as-judge scoring against configurable aspects and rubrics, with PASS/FAIL verdicts and reasoning
+- Real or mock tools — run test cases against live tool integrations (HTTP/Lambda/MCP/sub-agent) or dummy mock responses
+- Performance metrics — TTFT (time to first token), TTFB (time to first audio byte), and tool-execution latency, with min/max/avg/p50/p95
 
 ### Platform
 - Voice agent deployed on AgentCore Bidirectional Runtime
@@ -44,41 +67,18 @@ higher security review bar.
 - Cognito auth with SigV4 presigned WebSocket URLs
 - One-command CDK deployment to AWS
 
-## Prerequisites
+## Deployment
 
-- AWS CLI v2 configured
-- Node.js 18+ and npm
-- Python 3.11+ and pip
-- AWS CDK v2 (`npm install -g aws-cdk`)
-- AWS credentials with permissions for CloudFormation, S3, CloudFront, Cognito, DynamoDB, Lambda, API Gateway, Bedrock, and Bedrock AgentCore
-- Amazon Nova 2 Sonic model access enabled in Bedrock console
+The core app (frontend + voice agent on AgentCore) is deployed with CDK via `deployment/deploy.sh`. Prerequisites, supported regions, CDK stacks, IAM permissions, environment variables, and step-by-step instructions live in the deployment guide:
 
-### Supported Regions
+- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** — full deployment guide
+- **[docs/LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md)** — running locally without a full deploy
 
-Deploy to **us-east-1** (N. Virginia) for full AgentCore + Nova 2 Sonic support.
-
-## Quick Start
-
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full deployment guide, CDK stacks, IAM permissions, and environment variables.
-
-`deploy.sh` provisions the core app — components **1 (frontend app)** and
-**2 (voice agent on AgentCore)**:
-
-```bash
-cd voice-agent-poc-in-a-box
-export CDK_INPUT_USER_EMAILS=user1@example.com
-cd deployment
-bash ./deploy.sh
-```
-
-Components **3 (PSTN)** and **4 (SIP)** are optional and deployed independently —
-see [`telephony/pstn/`](telephony/pstn/) and [`telephony/sip/`](telephony/sip/).
-
-For local development without full deployment, see [docs/LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md).
+The two telephony paths (PSTN and SIP) are optional and deployed separately — see [`telephony/pstn/`](telephony/pstn/) and [`telephony/sip/`](telephony/sip/).
 
 ## Telephony
 
-Real-world voice agents need phone connectivity. The studio provides two telephony paths, letting you test agents over actual phone calls during development and move to production-grade SIP integration for enterprise deployments.
+Real-world voice agents need phone connectivity. The studio provides two telephony paths, letting you test agents over actual phone calls during development, with a direct SIP integration path for enterprise-style deployments.
 
 > **Deployed separately from the main CDK app.** Both telephony paths provision
 > internet-facing network infrastructure (public load balancers, open UDP ports)
@@ -130,31 +130,24 @@ Direct SIP integration for enterprise contact centers (Genesys, Five9, NICE) or 
 
 ## Speech Pipelines
 
-The studio supports two fundamentally different approaches to building voice agents. The wizard lets users choose their pipeline and model, with the UI adapting configuration options accordingly.
-
 ### Bidirectional Streaming (Speech-to-Speech)
 
-A single model handles speech input, reasoning, and speech output in one stream. Lowest latency — audio goes in, audio comes out, no intermediate text step required.
+The implemented pipeline. A single model handles speech input, reasoning, and speech output in one stream. Lowest latency — audio goes in, audio comes out, no intermediate text step required.
 
-| Model | Provider | API Key |
-|-------|----------|---------|
-| Amazon Nova 2 Sonic | AWS Bedrock | Not needed |
-| OpenAI Realtime API | OpenAI | Required |
-| Gemini Live | Google AI | Required |
+The agent runtime (`source/agent/main.py`) builds a **Strands BidiAgent** with **Amazon Nova 2 Sonic**, which manages bidirectional WebSocket streaming, tool orchestration, and turn detection.
 
-Framework: **Strands BidiAgent** — manages bidirectional WebSocket streaming, tool orchestration, and turn detection.
+> **Note:** OpenAI Realtime API and Gemini Live are offered as model choices in
+> the wizard (with API-key inputs), but their Strands adapters are not yet wired
+> up — the runtime logs a warning and falls back to Nova Sonic. Nova 2 Sonic is
+> the only speech-to-speech model that actually runs today. A plan to enable
+> them lives in [docs/GUIDE-openai-gemini-support.md](docs/GUIDE-openai-gemini-support.md).
 
-### Cascaded Pipeline (STT → LLM → TTS)
-
-Separate models for each stage: transcribe speech to text, reason over text, synthesize speech from the response. More flexibility in model choice at each stage — swap STT, LLM, or TTS independently.
-
-| Stage | Options |
-|-------|---------|
-| STT | Amazon Transcribe, Deepgram |
-| LLM | Amazon Nova Lite, Nova Pro, GPT-4o |
-| TTS | Amazon Polly, Eleven Labs |
-
-Framework: **LiveKit Agents** — pipeline orchestration with interruption handling and VAD.
+> **Cascaded pipeline (STT → LLM → TTS) is not implemented.** The wizard contains
+> disabled UI scaffolding for a cascaded workflow (a hidden `CascadedSpeech`
+> page and unused `pipeline: 'cascaded'` / `framework: 'pipecat' | 'livekit'`
+> type options), but there is no backend for it — the agent runtime only creates
+> a Nova Sonic BidiAgent, and no STT/LLM/TTS or Pipecat/LiveKit code or
+> dependencies exist in the source. Speech-to-Speech is the only working pipeline.
 
 ### Expert Tool Mode (Nova Sonic only)
 
@@ -170,7 +163,7 @@ A hybrid approach specific to Nova Sonic: the model handles speech (ASR/TTS) whi
 
 ## Agent Tools
 
-**Pre-built**: knowledge-base, calendar, CRM, order-status, transfer, payment, notification
+**Reserved**: `endCallTool` (end the call gracefully) and `transferCall` (transfer to a live agent/department) — always available to every agent. All other tools (knowledge base, CRM, calendar, etc.) are configured as custom tools via the Tools UI, not pre-built.
 
 **Integrations**: Webhooks (HTTP), Lambda functions, MCP gateways (AgentCore), sub-agents
 
@@ -178,19 +171,52 @@ A hybrid approach specific to Nova Sonic: the model handles speech (ASR/TTS) whi
 
 **RAG**: Upload documents to a Bedrock Knowledge Base and query them as a tool during conversations.
 
+## Evaluation
+
+Test voice agents before they reach production. The studio runs an agent against a simulated caller and scores the resulting conversation, so you can compare prompts and models and catch regressions.
+
+### Eval Suites
+
+An eval suite groups reusable **test cases** for an agent. Each test case captures a base prompt, target model, and a set of simulated-caller scenarios, so the same checks can be re-run as the agent evolves. Suites are per-user (admins can see all), and every run is stored for later comparison.
+
+### Real vs Mock Tools
+
+Each run chooses how the agent's tools behave:
+
+- **Live** — the agent calls the real integration (HTTP webhook, Lambda, AgentCore MCP gateway, or sub-agent). Tools with no real integration fall back to their mock response.
+- **Mock** — every tool returns its configured dummy response, so you can exercise conversation logic without hitting external systems.
+
+### LLM-as-Judge Scoring
+
+After the simulated conversation completes, an LLM judge evaluates the transcript against configurable **evaluation aspects** and **rubrics**, producing per-metric PASS/FAIL verdicts with reasoning, an overall pass rate, and strengths/weaknesses. Runs execute asynchronously and report `PENDING → RUNNING → EVALUATING → COMPLETED`.
+
+### Performance Metrics
+
+Every run captures voice-latency metrics from the AgentCore session, aggregated as min / max / avg / p50 / p95:
+
+| Metric | Meaning |
+|--------|---------|
+| TTFT | Time to first token — user input end → first text from the agent |
+| TTFB | Time to first byte — user input end → first audio byte from the agent |
+| Tool execution | Time from tool call to tool result |
+
+Additional per-turn measurements (turn-taking gap, tool-to-speech, total tool time) are recorded in the interaction log.
+
+Backend: `source/api/eval_handler.py` and `eval_suites_handler.py` (API), `source/eval-runner/` (async runner + AgentCore adapter). UI: the **Eval Suites** pages under `source/frontend/src/pages/`.
+
 ## Tech Stack
 
 | Component | Technology |
 |-----------|-----------|
 | Frontend | React 19, TypeScript, Vite, CSS Modules |
 | Agent Runtime | Python, Strands BidiAgent, AgentCore Bidirectional Runtime |
-| Speech-to-Speech | Amazon Nova 2 Sonic, OpenAI Realtime, Gemini Live |
-| Cascaded Pipeline | Amazon Transcribe + Nova Lite + Polly; LiveKit Agents |
+| Speech-to-Speech | Amazon Nova 2 Sonic (Strands BidiAgent) |
 | Expert Tool | BedrockConverseReasoner (Claude, Nova Pro, Qwen3) |
 | Agent Hosting | Amazon Bedrock AgentCore (WebSocket, bidirectional streaming) |
 | Tool Gateways | AgentCore MCP Gateways |
 | Sub-agents | AgentCore Runtime (delegated agent invocation) |
-| RAG | AgentCore Managed Knowledge Base + OpenSearch Serverless |
+| RAG | Existing Bedrock Knowledge Base (via `retrieve` API) — not created by this app |
+| Evaluation | Async eval runner (container Lambda) + LLM-as-judge harness, S3 results, DynamoDB job/suite tables |
 | Auth | Cognito User Pool + Identity Pool, SigV4 presigned URLs |
 | API | Lambda + API Gateway + DynamoDB |
 | Infrastructure | AWS CDK (Python), CloudFormation |
@@ -205,37 +231,50 @@ voice-agent-poc-in-a-box/
 ├── deployment/                          # CDK infrastructure-as-code
 │   ├── app.py                           # CDK app entry point
 │   ├── deploy.sh                        # Full deployment script
-│   ├── deploy-backend.sh               # Backend stacks only
-│   ├── deploy-frontend.sh              # Frontend build + deploy
+│   ├── deploy-backend.sh                # Backend stacks only
+│   ├── deploy-frontend.sh               # Frontend build + deploy
 │   ├── pre_stack/                       # Cognito, S3, ECR
 │   ├── agent_stack/                     # AgentCore Runtime
-│   ├── demos_stack/                     # DynamoDB + API (demos, tools, RAG)
-│   ├── kb_stack/                        # Bedrock Knowledge Base
+│   ├── demos_stack/                     # DynamoDB + API (demos, tools, RAG, Knowledge Base)
 │   ├── frontend/                        # CloudFront + S3
 │   └── post_stack/                      # Cognito user creation
 ├── source/
 │   ├── agent/                           # Voice agent server
 │   │   ├── main.py                      # AgentCore entrypoint
 │   │   ├── strands_agent.py             # Local dev server (FastAPI)
-│   │   ├── tools/                       # @tool implementations
-│   │   └── deploy_package/              # Pre-bundled ARM64 deps for AgentCore
+│   │   ├── rag_tools.py                 # RAG / Knowledge Base tool
+│   │   ├── call_history_logger.py       # Call history logging
+│   │   └── tools/                       # Reserved-tool registry (endCallTool, transferCall)
 │   ├── api/                             # Lambda handlers
 │   │   ├── demos_handler.py             # Demos CRUD
 │   │   ├── tools_handler.py             # Tools CRUD + testing
-│   │   ├── rag_handler.py              # RAG/Knowledge Base operations
-│   │   └── phone_mappings_handler.py    # Phone → agent mapping
+│   │   ├── rag_handler.py               # RAG / Knowledge Base operations
+│   │   ├── phone_mappings_handler.py    # Phone → agent mapping
+│   │   ├── call_history_handler.py      # Call history API
+│   │   ├── eval_handler.py              # Eval runs
+│   │   ├── eval_suites_handler.py       # Eval suites
+│   │   ├── generate_agent_handler.py    # Agent generation
+│   │   ├── generate_prompt_handler.py   # Prompt generation
+│   │   ├── skills_handler.py            # Prompt best-practice skills
+│   │   ├── auth_utils.py                # Shared auth helpers
+│   │   ├── prompt_best_practices/       # Model-specific prompt skills
+│   │   └── sample_tools/                # Sample custom-tool definitions
+│   ├── eval-runner/                     # Standalone eval runner (AgentCore adapter)
 │   └── frontend/                        # React UI
 │       └── src/
-│           ├── config/                  # Templates, voices, reasoner models
+│           ├── config/                  # Templates, voices, reserved tools, wizard steps
 │           ├── context/                 # Auth + Wizard state
 │           ├── services/                # API clients, presigned URLs
-│           ├── pages/                   # Wizard steps, dashboard, integrations
-│           └── components/              # Shared UI (workflow canvas, sidebar)
+│           ├── pages/                   # Wizard steps, dashboard, integrations, telephony
+│           ├── components/              # Shared UI (workflow canvas, sidebar)
+│           ├── events/                  # Event handling
+│           ├── hooks/                   # React hooks
+│           └── styles/                  # Shared styles
 ├── telephony/                           # Phone connectivity — deployed separately from CDK
 │   ├── pstn/                            # PSTN relay (Twilio TAC Bridge, ECS Fargate)
 │   └── sip/                             # SIP relay (drachtio + bridge, EKS/NLB)
+├── tools/                               # Voice recording utilities (Polly / Nova Sonic)
 ├── docs/                                # Telephony and integration guides
-├── expert_tool_strands/                 # Expert Tool sample (reference implementation)
 └── README.md
 ```
 
