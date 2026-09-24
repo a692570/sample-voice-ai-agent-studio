@@ -46,7 +46,6 @@ higher security review bar.
 
 ### Speech & Reasoning
 - Bidirectional streaming (speech-to-speech) — Amazon Nova 2 Sonic (OpenAI Realtime and Gemini Live are selectable in the UI but currently fall back to Nova Sonic)
-- Expert Tool mode — offload reasoning and tool calls from Nova Sonic to Claude/Nova Pro/Qwen3
 
 ### Integrations
 - Built-in reserved tools (end call, transfer to human) available to every agent
@@ -65,6 +64,7 @@ higher security review bar.
 - Voice agent deployed on AgentCore Bidirectional Runtime
 - Agent dashboard — metrics, conversation history, cost tracking
 - Cognito auth with SigV4 presigned WebSocket URLs
+- Multi-tenant — each user sees only their own agents, tools, and evals (admins see all)
 - One-command CDK deployment to AWS
 
 ## Deployment
@@ -149,18 +149,6 @@ The agent runtime (`source/agent/main.py`) builds a **Strands BidiAgent** with *
 > a Nova Sonic BidiAgent, and no STT/LLM/TTS or Pipecat/LiveKit code or
 > dependencies exist in the source. Speech-to-Speech is the only working pipeline.
 
-### Expert Tool Mode (Nova Sonic only)
-
-A hybrid approach specific to Nova Sonic: the model handles speech (ASR/TTS) while a separate reasoning LLM handles tool calls. Combines the low latency of bidirectional streaming with the stronger reasoning capabilities of text-optimized models.
-
-| Reasoner | Provider |
-|----------|----------|
-| Claude Sonnet 4 | Bedrock |
-| Claude Haiku 4.5 | Bedrock |
-| Amazon Nova Pro | Bedrock |
-| Amazon Nova Lite | Bedrock |
-| Qwen3 32B | Bedrock |
-
 ## Agent Tools
 
 **Reserved**: `endCallTool` (end the call gracefully) and `transferCall` (transfer to a live agent/department) — always available to every agent. All other tools (knowledge base, CRM, calendar, etc.) are configured as custom tools via the Tools UI, not pre-built.
@@ -211,7 +199,6 @@ Backend: `source/api/eval_handler.py` and `eval_suites_handler.py` (API), `sourc
 | Frontend | React 19, TypeScript, Vite, CSS Modules |
 | Agent Runtime | Python, Strands BidiAgent, AgentCore Bidirectional Runtime |
 | Speech-to-Speech | Amazon Nova 2 Sonic (Strands BidiAgent) |
-| Expert Tool | BedrockConverseReasoner (Claude, Nova Pro, Qwen3) |
 | Agent Hosting | Amazon Bedrock AgentCore (WebSocket, bidirectional streaming) |
 | Tool Gateways | AgentCore MCP Gateways |
 | Sub-agents | AgentCore Runtime (delegated agent invocation) |

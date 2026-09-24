@@ -69,6 +69,10 @@ This:
 | `deploy-backend.sh` | Backend infrastructure (Pre + Agent + Demos) |
 | `deploy-frontend.sh` | Build and deploy React UI + create Cognito users |
 
+> **Note:** none of these scripts build the eval-runner bundle. Run
+> `bash source/eval-runner/bundle.sh` first (see above) — otherwise deploying
+> `VoiceAgentDemosStack` fails with `CannotFindAsset`.
+
 > Telephony (PSTN relay) and SIP are **not** part of this CDK app. They are
 > deployed separately — see [`telephony/pstn/`](../telephony/pstn/) and
 > [`telephony/sip/`](../telephony/sip/).
@@ -79,7 +83,7 @@ This:
 |-------|-----------|------------|
 | `VoiceAgentPreStack` | Cognito User Pool, Identity Pool (with IAM roles), S3, ECR | — |
 | `VoiceAgentAgentStack` | AgentCore Runtime (Nova Sonic BidiAgent, WebSocket) | PreStack |
-| `VoiceAgentDemosStack` | DynamoDB tables, Lambda functions, API Gateway (demos, tools, RAG, phone mappings) | PreStack |
+| `VoiceAgentDemosStack` | DynamoDB tables + Lambda + API Gateway for demos, tools, RAG/KB config, phone mappings, skills, eval (jobs, suites, runner), and call history | PreStack, AgentStack |
 | `VoiceAgentFrontendStack` | CloudFront distribution + S3 origin (React app) | PreStack |
 | `VoiceAgentPostStack` | Lambda for Cognito user creation | PreStack |
 
@@ -89,25 +93,47 @@ This:
 
 ## Knowledge Base configuration (optional, per account)
 
-RAG is optional and the Knowledge Base is **not created by this app**. If you
-want the RAG feature, create/choose a Bedrock Knowledge Base in the target
-account and pass its id at deploy time. The app defaults to no KB, in which case
-the Knowledge Bases page simply shows an empty state.
+RAG is optional. **Knowledge Bases are not auto-created by this app** — you
+create them manually in the target AWS account (via the Bedrock console or the
+CLI samples below). The Knowledge Bases page in the UI then **lists the Bedrock
+Knowledge Bases that already exist in the underlying account**, and you select
+one to use for RAG. If the account has none, the page shows an empty state.
+
+### Create a Knowledge Base (manual, one-time per account)
+
+Create a Bedrock Knowledge Base in the console, or via CLI. Minimal CLI outline
+(see the [Bedrock KB docs](https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base.html)
+for full setup of the vector store, embeddings model, and data source):
 
 ```bash
-# find existing KBs in the account
-aws bedrock-agent list-knowledge-bases --query "knowledgeBaseSummaries[].{id:knowledgeBaseId,name:name}"
+# Create the knowledge base (requires an IAM role + vector store already set up)
+aws bedrock-agent create-knowledge-base \
+  --name "voice-agent-kb" \
+  --role-arn arn:aws:iam::<account-id>:role/<kb-role> \
+  --knowledge-base-configuration '{ ... }' \
+  --storage-configuration '{ ... }'
 
-# deploy with the KB id (and the Demos API URL for the agent's RAG tools)
-npx cdk deploy VoiceAgentDemosStack VoiceAgentAgentStack \
-  -c kb_id=YOURKBID \
-  -c api_url=https://<demos-api-id>.execute-api.<region>.amazonaws.com/prod \
-  --require-approval never
+# Confirm it exists — this is what the UI's Knowledge Bases page lists
+aws bedrock-agent list-knowledge-bases \
+  --query "knowledgeBaseSummaries[].{id:knowledgeBaseId,name:name,status:status}"
 ```
 
-You can also set these as environment variables (`KB_ID`, `API_URL`) instead of
-CDK context. If left unset, RAG-related features are skipped gracefully — no
-errors on the Knowledge Bases page.
+### Selecting a KB
+
+- **From the UI (primary):** open the Knowledge Bases page — it lists existing
+  KBs in the account; pick one to enable RAG. The selection is stored server-side.
+- **At deploy time (optional default):** pre-set a KB via CDK context or env var:
+
+  ```bash
+  npx cdk deploy VoiceAgentDemosStack VoiceAgentAgentStack \
+    -c kb_id=YOURKBID \
+    -c api_url=https://<demos-api-id>.execute-api.<region>.amazonaws.com/prod \
+    --require-approval never
+  # or set KB_ID / API_URL as environment variables instead of CDK context
+  ```
+
+If no KB is created or selected, RAG-related features are skipped gracefully —
+no errors on the Knowledge Bases page.
 
 ## Deploying Individual Stacks
 
@@ -190,15 +216,25 @@ list.
 
 ## IAM Permissions
 
-The AgentCore Runtime role is granted:
+The AgentCore Runtime role (`deployment/agent_stack/agent_stack.py`) is granted:
 
-```
-bedrock:InvokeModel
-bedrock:InvokeModelWithResponseStream
-bedrock:InvokeModelWithBidirectionalStream
-```
-
-On `Resource: *` — this covers Nova Sonic, Claude, Nova Pro, and any other Bedrock model used as a reasoner in Expert Tool mode.
+- **Bedrock model invocation** (`Resource: *`) — covers Nova 2 Sonic and any other Bedrock model invoked:
+  ```
+  bedrock:InvokeModel
+  bedrock:InvokeModelWithResponseStream
+  bedrock:InvokeModelWithBidirectionalStream
+  bedrock:Retrieve            # RAG queries against a Knowledge Base
+  ```
+- **AgentCore** (`Resource: *`) — MCP gateways and invoking other AgentCore runtimes (A2A sub-agents):
+  ```
+  bedrock-agentcore:*
+  bedrock-agentcore-control:*
+  ```
+- **Call history** — write conversation records:
+  ```
+  s3:PutObject, s3:GetObject          # on the assets bucket
+  dynamodb:PutItem, dynamodb:GetItem, dynamodb:Query   # on the call-history table
+  ```
 
 ## Presigned WebSocket URLs
 
