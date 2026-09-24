@@ -1,0 +1,21 @@
+{
+  "name": "voice-agent-sip-bridge",
+  "version": "1.0.0",
+  "description": "SIP-to-WebSocket bridge using drachtio-srf — connects SIP calls to Nova Sonic agent",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "drachtio-srf": "^4.5.0",
+    "rtpengine-client": "^0.4.0",
+    "ws": "^8.16.0",
+    "pino": "^8.17.2",
+    "@aws-sdk/credential-providers": "^3.600.0",
+    "@aws-sdk/client-dynamodb": "^3.600.0",
+    "@aws-sdk/lib-dynamodb": "^3.600.0",
+    "@smithy/signature-v4": "^3.0.0",
+    "@smithy/protocol-http": "^4.0.0",
+    "@aws-crypto/sha256-js": "^5.2.0"
+  }
+}

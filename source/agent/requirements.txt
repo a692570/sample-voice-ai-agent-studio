@@ -1,0 +1,13 @@
+# Strands Agents SDK with bidirectional streaming (Nova Sonic voice loop).
+# Installed from PyPI — the [bidi] extra pulls the Nova Sonic streaming deps.
+#
+# PINNED: the bidi API is experimental and changed between 1.56 and 1.57
+# (audio input moved from BidiAudioInputEvent to the audio_delta contract).
+# main.py / strands_agent.py are written against 1.57.0's input contract, so
+# pin exactly to keep local dev and every deploy on the same known-good API.
+strands-agents[bidi]==1.57.0
+bedrock-agentcore>=1.0.0
+boto3>=1.43.0
+mcp>=1.0.0
+uvicorn>=0.30.0
+fastapi>=0.115.0

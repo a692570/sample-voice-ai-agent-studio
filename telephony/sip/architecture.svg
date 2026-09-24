@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 560" font-family="Inter, -apple-system, sans-serif" font-size="12">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#64748b"/>
+    </marker>
+    <marker id="arrow-blue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#3b82f6"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#10b981"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1080" height="560" fill="#f8fafc" rx="8"/>
+
+  <!-- Title -->
+  <text x="540" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#1e293b">SIP Relay Architecture (drachtio + Jambonz Bridge)</text>
+
+  <!-- Contact center / SIP trunk -->
+  <rect x="30" y="215" width="165" height="110" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="112" y="242" text-anchor="middle" font-size="13" font-weight="600" fill="#92400e">SIP Trunk</text>
+  <text x="112" y="262" text-anchor="middle" font-size="10" fill="#78350f">Genesys / Five9 / NICE</text>
+  <text x="112" y="278" text-anchor="middle" font-size="10" fill="#78350f">/ Twilio SIP</text>
+  <text x="112" y="298" text-anchor="middle" font-size="10" fill="#78350f">SIP + G.711 μ-law RTP</text>
+  <text x="112" y="314" text-anchor="middle" font-size="10" fill="#78350f">8kHz, 20ms packets</text>
+
+  <!-- Trunk -> NLB -->
+  <line x1="195" y1="270" x2="235" y2="270" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="215" y="248" text-anchor="middle" font-size="9" fill="#64748b">UDP 5060</text>
+  <text x="215" y="290" text-anchor="middle" font-size="9" fill="#64748b">UDP 20000+</text>
+
+  <!-- AWS Cloud boundary -->
+  <rect x="230" y="60" width="820" height="470" rx="12" fill="none" stroke="#94a3b8" stroke-width="1" stroke-dasharray="6,4"/>
+  <text x="250" y="80" font-size="11" font-weight="600" fill="#64748b">AWS Cloud (us-east-1)</text>
+
+  <!-- NLB -->
+  <rect x="250" y="225" width="150" height="90" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="325" y="252" text-anchor="middle" font-size="13" font-weight="600" fill="#1e40af">NLB (UDP)</text>
+  <text x="325" y="272" text-anchor="middle" font-size="10" fill="#1d4ed8">:5060 SIP</text>
+  <text x="325" y="288" text-anchor="middle" font-size="10" fill="#1d4ed8">:20000+ RTP</text>
+  <text x="325" y="304" text-anchor="middle" font-size="10" fill="#1d4ed8">stable public endpoint</text>
+
+  <!-- NLB -> node -->
+  <line x1="400" y1="270" x2="435" y2="270" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- VPC boundary -->
+  <rect x="430" y="100" width="620" height="410" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="450" y="122" font-size="12" font-weight="600" fill="#1d4ed8">VPC: voice-agent-sip — EKS node (hostNetwork, public IP)</text>
+
+  <!-- DaemonSet pod container: drachtio -->
+  <rect x="450" y="150" width="255" height="70" rx="8" fill="#e0e7ff" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="577" y="176" text-anchor="middle" font-size="12" font-weight="600" fill="#3730a3">drachtio</text>
+  <text x="577" y="196" text-anchor="middle" font-size="10" fill="#4338ca">SIP signaling server (:5060)</text>
+  <text x="577" y="211" text-anchor="middle" font-size="10" fill="#4338ca">INVITE / SDP negotiation</text>
+
+  <!-- rtpengine -->
+  <rect x="450" y="235" width="255" height="70" rx="8" fill="#e0e7ff" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="577" y="261" text-anchor="middle" font-size="12" font-weight="600" fill="#3730a3">rtpengine</text>
+  <text x="577" y="281" text-anchor="middle" font-size="10" fill="#4338ca">RTP media proxy (:20000-20100)</text>
+  <text x="577" y="296" text-anchor="middle" font-size="10" fill="#4338ca">codec handling</text>
+
+  <!-- bridge -->
+  <rect x="450" y="320" width="255" height="90" rx="8" fill="#dcfce7" stroke="#10b981" stroke-width="1.5"/>
+  <text x="577" y="346" text-anchor="middle" font-size="12" font-weight="600" fill="#065f46">SIP Bridge (Node.js)</text>
+  <text x="577" y="366" text-anchor="middle" font-size="10" fill="#047857">drachtio-srf + rtpengine-client</text>
+  <text x="577" y="382" text-anchor="middle" font-size="10" fill="#047857">RTP ↔ WebSocket, :3000 health</text>
+  <text x="577" y="398" text-anchor="middle" font-size="10" fill="#047857">SigV4-presign WSS</text>
+
+  <!-- internal links between containers -->
+  <line x1="577" y1="220" x2="577" y2="233" stroke="#94a3b8" stroke-width="1.2"/>
+  <line x1="577" y1="305" x2="577" y2="318" stroke="#94a3b8" stroke-width="1.2"/>
+
+  <!-- DynamoDB -->
+  <rect x="750" y="150" width="270" height="80" rx="8" fill="#fef9c3" stroke="#ca8a04" stroke-width="1.5"/>
+  <text x="885" y="178" text-anchor="middle" font-size="12" font-weight="600" fill="#854d0e">DynamoDB</text>
+  <text x="885" y="198" text-anchor="middle" font-size="10" fill="#a16207">voice-agent-poc-demos</text>
+  <text x="885" y="214" text-anchor="middle" font-size="10" fill="#a16207">agent config lookup</text>
+
+  <!-- bridge -> DynamoDB -->
+  <line x1="705" y1="350" x2="750" y2="220" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="748" y="286" text-anchor="middle" font-size="9" fill="#64748b">config</text>
+
+  <!-- AgentCore -->
+  <rect x="750" y="320" width="270" height="90" rx="8" fill="#f1f5f9" stroke="#475569" stroke-width="1.5"/>
+  <text x="885" y="346" text-anchor="middle" font-size="12" font-weight="600" fill="#1e293b">Bedrock AgentCore</text>
+  <text x="885" y="366" text-anchor="middle" font-size="10" fill="#334155">Nova Sonic BidiAgent</text>
+  <text x="885" y="382" text-anchor="middle" font-size="10" fill="#334155">WebSocket runtime</text>
+  <text x="885" y="398" text-anchor="middle" font-size="10" fill="#334155">PCM 16/24kHz</text>
+
+  <!-- bridge -> AgentCore -->
+  <line x1="705" y1="365" x2="750" y2="365" stroke="#10b981" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+  <text x="727" y="358" text-anchor="middle" font-size="9" fill="#10b981">WSS</text>
+
+  <!-- Legend -->
+  <text x="250" y="500" font-size="10" fill="#64748b">Amber = external SIP trunk · Indigo = SIP/RTP containers · Green = bridge &amp; agent audio · Grey = internal/AWS calls</text>
+</svg>

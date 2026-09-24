@@ -1,0 +1,162 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.presets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.presetCard {
+  padding: 18px;
+  border: 2px solid var(--border-light);
+  background: white;
+  border-radius: var(--radius);
+  text-align: left;
+  transition: all 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.presetCard:hover {
+  border-color: var(--accent);
+}
+
+.presetCard.selected {
+  border-color: var(--accent);
+  background: #eef2ff;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.presetCard strong {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.presetCard span {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.divider {
+  text-align: center;
+  position: relative;
+  margin: 8px 0;
+}
+
+.divider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--border-light);
+}
+
+.divider span {
+  position: relative;
+  background: var(--surface);
+  padding: 0 16px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.modelGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px;
+}
+
+.modelSection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modelOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modelBtn {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  background: white;
+  border-radius: var(--radius);
+  text-align: left;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modelBtn:hover {
+  border-color: var(--accent);
+}
+
+.modelBtn.modelSelected {
+  border-color: var(--accent);
+  background: #eef2ff;
+}
+
+.modelLabel {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.providerBadge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  background: var(--bg);
+  border-radius: 4px;
+  color: var(--text-muted);
+}
+
+.pipelinePreview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--bg);
+  border-radius: var(--radius);
+  border: 1px solid var(--border-light);
+}
+
+.pipelineNode {
+  font-size: 14px;
+  font-weight: 500;
+  padding: 6px 14px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+}
+
+.pipelineArrow {
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 16px;
+}

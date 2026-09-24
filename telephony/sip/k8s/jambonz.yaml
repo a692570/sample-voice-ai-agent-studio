@@ -1,0 +1,94 @@
+# Simplified SIP Bridge — drachtio + rtpengine + bridge app
+# Uses hostNetwork for direct UDP port access
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: sip-bridge
+  namespace: sip
+  labels:
+    app: sip-bridge
+spec:
+  selector:
+    matchLabels:
+      app: sip-bridge
+  template:
+    metadata:
+      labels:
+        app: sip-bridge
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      nodeSelector:
+        role: sip
+      containers:
+        # drachtio — SIP signaling
+        - name: drachtio
+          image: drachtio/drachtio-server:latest
+          args:
+            - drachtio
+            - --contact
+            - "sip:*:5060;transport=udp"
+            - --contact
+            - "sip:*:5060;transport=tcp"
+            - --loglevel
+            - info
+            - --secret
+            - cymru
+          ports:
+            - containerPort: 5060
+              protocol: UDP
+            - containerPort: 5060
+              protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: 9022
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+        # rtpengine — RTP media
+        - name: rtpengine
+          image: drachtio/rtpengine:latest
+          env:
+            - name: CLOUD
+              value: "aws"
+            - name: OPTIONS
+              value: "--interface=private/0.0.0.0 --listen-ng=22222 --port-min=20000 --port-max=20100 --log-level=4 --delete-delay=0"
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN"]
+          readinessProbe:
+            tcpSocket:
+              port: 22222
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+        # SIP bridge — your app (drachtio-srf → WebSocket)
+        - name: bridge
+          image: ${ECR_REPO}/voice-agent-sip-bridge:latest
+          env:
+            - name: DRACHTIO_HOST
+              value: "127.0.0.1"
+            - name: DRACHTIO_PORT
+              value: "9022"
+            - name: DRACHTIO_SECRET
+              value: "cymru"
+            - name: RTPENGINE_HOST
+              value: "127.0.0.1"
+            - name: RTPENGINE_PORT
+              value: "22222"
+            - name: AGENT_WS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: jambonz-config
+                  key: AGENT_WS_URL
+            - name: PORT
+              value: "3000"
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10

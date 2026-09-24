@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jambonz-config
+  namespace: sip
+data:
+  AGENT_WS_URL: "ws://voice-agent.default.svc.cluster.local:8081/ws"
+  JAMBONES_LOGLEVEL: "info"
+  DRACHTIO_SECRET: "cymru"
+  RTP_PORT_MIN: "20000"
+  RTP_PORT_MAX: "20100"

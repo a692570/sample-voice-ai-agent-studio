@@ -1,0 +1,13 @@
+FROM public.ecr.aws/docker/library/node:22-slim
+WORKDIR /app
+COPY bridge/package.json bridge/package-lock.json* ./
+RUN npm install --production
+COPY bridge/ .
+# Run as the built-in non-root "node" user (own the app dir so it stays readable).
+RUN chown -R node:node /app
+USER node
+EXPOSE 3000
+# Liveness check against the bridge's health/HTTP port.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD node -e "require('net').connect(3000,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"
+CMD ["node", "index.js"]

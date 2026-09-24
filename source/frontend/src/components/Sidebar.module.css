@@ -1,0 +1,365 @@
+.sidebar {
+  width: 240px;
+  min-width: 240px;
+  height: 100vh;
+  background: #fafafa;
+  border-right: 1px solid #e5e5e5;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 0;
+  transition: width 0.2s ease, min-width 0.2s ease;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+}
+
+.collapsed {
+  width: 52px;
+  min-width: 52px;
+}
+
+.toggleBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: 4px 10px 8px auto;
+  background: transparent;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  color: #888;
+  transition: all 0.15s ease;
+}
+
+.collapsed .toggleBtn {
+  margin: 4px auto 8px;
+}
+
+.toggleBtn:hover {
+  background: #f0f0f0;
+  border-color: #ccc;
+  color: #555;
+}
+
+.nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 10px;
+  overflow-y: auto;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: #444;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0.4px;
+  text-align: left;
+  width: 100%;
+  transition: background 0.15s ease;
+}
+
+.sectionHeader:hover {
+  background: #f0f0f0;
+}
+
+.sectionIcon {
+  display: flex;
+  align-items: center;
+  color: #888;
+}
+
+.sectionTitle {
+  flex: 1;
+  color: #666;
+}
+
+.chevron {
+  display: flex;
+  align-items: center;
+  color: #aaa;
+  transition: transform 0.2s ease;
+  transform: rotate(-90deg);
+}
+
+.chevronOpen {
+  transform: rotate(0deg);
+}
+
+.sectionContent {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 0 8px 8px;
+}
+
+.topNavItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #555;
+  text-decoration: none;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  border: none;
+  background: none;
+  width: 100%;
+  cursor: pointer;
+}
+
+.topNavItem:hover {
+  background: #ebebeb;
+  color: #333;
+}
+
+.topNavItem.active {
+  background: #e8e8e8;
+  color: #222;
+  font-weight: 600;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  font-size: 14px;
+  color: #666;
+  text-decoration: none;
+  border-radius: 6px;
+  font-weight: 450;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.navItem:hover {
+  background: #ebebeb;
+  color: #333;
+}
+
+.active {
+  background: #e8e8e8;
+  color: #222;
+  font-weight: 600;
+}
+
+/* Architecture icon button — pinned to bottom */
+.archBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 36px;
+  height: 36px;
+  margin: auto auto 8px;
+  background: transparent;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  color: #999;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.archBtnExpanded {
+  width: auto;
+  margin: auto 10px 8px;
+  padding: 8px 12px;
+}
+
+.archBtn:hover {
+  background: #f0f0f0;
+  border-color: #bbb;
+  color: #555;
+}
+
+.archLabel {
+  font-size: 14px;
+  font-weight: 500;
+  color: inherit;
+}
+
+/* Architecture Modal */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 32px;
+}
+
+.modalContent {
+  background: white;
+  border-radius: 12px;
+  max-width: 1100px;
+  max-height: 90vh;
+  width: 100%;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid #e5e5e5;
+  flex-shrink: 0;
+}
+
+.modalTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.modalClose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #888;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.modalClose:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.modalBody {
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.archDescription {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #555;
+  max-width: 800px;
+}
+
+.archImage {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+  border: 1px solid #e5e5e5;
+}
+
+
+/* Float menu for more agents */
+.floatMenu {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  z-index: 50;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  padding: 6px;
+  min-width: 180px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.floatMenuItem {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: #555;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.floatMenuItem:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.logoSection {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e5e5;
+  margin-bottom: 4px;
+}
+
+.userSection {
+  margin-top: auto;
+  padding: 8px 16px;
+  border-top: 1px solid #e5e5e5;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.userEmail {
+  font-size: 12px;
+  color: #94a3b8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.signOutBtn {
+  padding: 6px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.signOutBtn:hover {
+  background: #f8fafc;
+  color: #6366f1;
+}

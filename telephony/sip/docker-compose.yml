@@ -1,0 +1,72 @@
+version: '3.8'
+
+# Simplified SIP-to-WebSocket Bridge
+# 3 containers only: drachtio (SIP) + rtpengine (RTP) + bridge app
+
+services:
+  # drachtio — SIP signaling server
+  drachtio:
+    image: drachtio/drachtio-server:latest
+    command: >
+      drachtio --contact "sip:*:5060;transport=udp"
+      --contact "sip:*:5060;transport=tcp"
+      --loglevel info
+      --secret cymru
+    ports:
+      - "5060:5060/udp"
+      - "5060:5060/tcp"
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9022 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # rtpengine — RTP media proxy (converts codecs, handles NAT)
+  rtpengine:
+    image: drachtio/rtpengine:latest
+    ports:
+      - "20000-20100:20000-20100/udp"
+    environment:
+      - CLOUD=aws
+      - "OPTIONS=--interface=private/0.0.0.0 --listen-ng=22222 --port-min=20000 --port-max=20100 --log-level=4 --delete-delay=0 --codec-mask=all --codec-accept=PCMU,PCMA,opus"
+    cap_add:
+      - NET_ADMIN
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 22222 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # SIP bridge app — connects SIP calls to your voice agent WebSocket
+  sip-bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile.bridge
+    ports:
+      - "3000:3000"
+    environment:
+      - DRACHTIO_HOST=drachtio
+      - DRACHTIO_PORT=9022
+      - DRACHTIO_SECRET=cymru
+      - RTPENGINE_HOST=rtpengine
+      - RTPENGINE_PORT=22222
+      - AGENT_WS_URL=ws://host.docker.internal:8081/ws
+      - PORT=3000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Hardening: drop privilege escalation and run on a read-only root
+    # filesystem (the Node bridge writes nothing to disk; /tmp is writable).
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    depends_on:
+      drachtio:
+        condition: service_healthy
+      rtpengine:
+        condition: service_healthy

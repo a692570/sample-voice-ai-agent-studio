@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 560" font-family="Inter, -apple-system, sans-serif" font-size="12">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#64748b"/>
+    </marker>
+    <marker id="arrow-blue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#3b82f6"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#10b981"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1080" height="560" fill="#f8fafc" rx="8"/>
+
+  <!-- Title -->
+  <text x="540" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#1e293b">PSTN Relay Architecture (Twilio TAC Bridge)</text>
+
+  <!-- Caller -->
+  <rect x="30" y="230" width="150" height="80" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="105" y="262" text-anchor="middle" font-size="13" font-weight="600" fill="#92400e">Caller</text>
+  <text x="105" y="282" text-anchor="middle" font-size="10" fill="#78350f">Dials phone number</text>
+  <text x="105" y="298" text-anchor="middle" font-size="10" fill="#78350f">(PSTN)</text>
+
+  <!-- Twilio -->
+  <rect x="215" y="220" width="160" height="100" rx="8" fill="#fee2e2" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="295" y="248" text-anchor="middle" font-size="13" font-weight="600" fill="#991b1b">Twilio</text>
+  <text x="295" y="268" text-anchor="middle" font-size="10" fill="#7f1d1d">Handles PSTN + RTP</text>
+  <text x="295" y="284" text-anchor="middle" font-size="10" fill="#7f1d1d">Conversation Relay</text>
+  <text x="295" y="302" text-anchor="middle" font-size="10" fill="#7f1d1d">Media Stream (μ-law 8kHz)</text>
+
+  <!-- Caller <-> Twilio -->
+  <line x1="180" y1="270" x2="211" y2="270" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="196" y="262" text-anchor="middle" font-size="9" fill="#64748b">call</text>
+
+  <!-- Twilio -> AWS (webhook + WSS) -->
+  <line x1="375" y1="270" x2="415" y2="270" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+  <text x="395" y="248" text-anchor="middle" font-size="9" fill="#3b82f6">HTTPS</text>
+  <text x="395" y="290" text-anchor="middle" font-size="9" fill="#3b82f6">WSS</text>
+
+  <!-- AWS Cloud boundary -->
+  <rect x="410" y="60" width="640" height="470" rx="12" fill="none" stroke="#94a3b8" stroke-width="1" stroke-dasharray="6,4"/>
+  <text x="430" y="80" font-size="11" font-weight="600" fill="#64748b">AWS Cloud (us-east-1)</text>
+
+  <!-- CloudFront -->
+  <rect x="430" y="230" width="150" height="80" rx="8" fill="#ede9fe" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="505" y="262" text-anchor="middle" font-size="13" font-weight="600" fill="#5b21b6">CloudFront</text>
+  <text x="505" y="282" text-anchor="middle" font-size="10" fill="#6d28d9">HTTPS / WSS (TLS)</text>
+  <text x="505" y="298" text-anchor="middle" font-size="10" fill="#6d28d9">WebSocket proxy</text>
+
+  <!-- CloudFront -> ALB -->
+  <line x1="580" y1="270" x2="615" y2="270" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="597" y="262" text-anchor="middle" font-size="9" fill="#64748b">HTTP</text>
+
+  <!-- VPC boundary -->
+  <rect x="615" y="100" width="415" height="410" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="635" y="122" font-size="12" font-weight="600" fill="#1d4ed8">VPC — public subnets only (no NAT)</text>
+
+  <!-- ALB -->
+  <rect x="635" y="230" width="150" height="80" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="710" y="258" text-anchor="middle" font-size="13" font-weight="600" fill="#1e40af">ALB</text>
+  <text x="710" y="278" text-anchor="middle" font-size="10" fill="#1d4ed8">HTTP :80 → :8080</text>
+  <text x="710" y="294" text-anchor="middle" font-size="10" fill="#1d4ed8">sticky, 3600s idle</text>
+
+  <!-- ALB -> Fargate -->
+  <line x1="785" y1="270" x2="820" y2="270" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Fargate bridge -->
+  <rect x="820" y="215" width="185" height="110" rx="8" fill="#dcfce7" stroke="#10b981" stroke-width="1.5"/>
+  <text x="912" y="242" text-anchor="middle" font-size="13" font-weight="600" fill="#065f46">TAC Bridge (Fargate)</text>
+  <text x="912" y="262" text-anchor="middle" font-size="10" fill="#047857">FastAPI :8080, public IP</text>
+  <text x="912" y="278" text-anchor="middle" font-size="10" fill="#047857">/twiml · /twilio-ws · /health</text>
+  <text x="912" y="296" text-anchor="middle" font-size="10" fill="#047857">Transcode μ-law ↔ PCM</text>
+  <text x="912" y="312" text-anchor="middle" font-size="10" fill="#047857">SigV4-presign WSS</text>
+
+  <!-- DynamoDB -->
+  <rect x="635" y="380" width="180" height="90" rx="8" fill="#fef9c3" stroke="#ca8a04" stroke-width="1.5"/>
+  <text x="725" y="406" text-anchor="middle" font-size="12" font-weight="600" fill="#854d0e">DynamoDB</text>
+  <text x="725" y="426" text-anchor="middle" font-size="10" fill="#a16207">voice-agent-poc-demos</text>
+  <text x="725" y="442" text-anchor="middle" font-size="10" fill="#a16207">voice-agent-poc-</text>
+  <text x="725" y="456" text-anchor="middle" font-size="10" fill="#a16207">phone-mappings</text>
+
+  <!-- Fargate -> DynamoDB -->
+  <line x1="860" y1="325" x2="770" y2="376" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="835" y="360" text-anchor="middle" font-size="9" fill="#64748b">config lookup</text>
+
+  <!-- AgentCore (outside VPC, in AWS cloud) -->
+  <rect x="820" y="380" width="185" height="90" rx="8" fill="#f1f5f9" stroke="#475569" stroke-width="1.5"/>
+  <text x="912" y="406" text-anchor="middle" font-size="12" font-weight="600" fill="#1e293b">Bedrock AgentCore</text>
+  <text x="912" y="426" text-anchor="middle" font-size="10" fill="#334155">Nova Sonic BidiAgent</text>
+  <text x="912" y="442" text-anchor="middle" font-size="10" fill="#334155">WebSocket runtime</text>
+  <text x="912" y="458" text-anchor="middle" font-size="10" fill="#334155">PCM 16/24kHz</text>
+
+  <!-- Fargate <-> AgentCore -->
+  <line x1="912" y1="325" x2="912" y2="376" stroke="#10b981" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+  <text x="912" y="352" text-anchor="middle" font-size="9" fill="#10b981">WSS (SigV4)</text>
+
+  <!-- Legend -->
+  <text x="430" y="500" font-size="10" fill="#64748b">Blue = HTTPS/WSS control &amp; media in · Green = agent audio stream · Grey = internal/AWS calls</text>
+</svg>

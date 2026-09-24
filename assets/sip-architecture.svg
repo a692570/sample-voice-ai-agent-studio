@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 820" font-family="Inter, -apple-system, sans-serif" font-size="12">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#64748b"/>
+    </marker>
+    <marker id="arrow-blue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#3b82f6"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#10b981"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1100" height="820" fill="#f8fafc" rx="8"/>
+
+  <!-- Title -->
+  <text x="550" y="30" text-anchor="middle" font-size="18" font-weight="700" fill="#1e293b">SIP Server Architecture — Network Components</text>
+
+  <!-- External: Caller / SIP Trunk -->
+  <rect x="30" y="55" width="220" height="80" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="140" y="77" text-anchor="middle" font-size="13" font-weight="600" fill="#92400e">Caller / SIP Trunk</text>
+  <text x="140" y="95" text-anchor="middle" font-size="11" fill="#78350f">Twilio / Genesys / Five9 / Softphone</text>
+  <text x="140" y="113" text-anchor="middle" font-size="10" fill="#92400e">SIP INVITE + G.711 μ-law RTP</text>
+  <text x="140" y="127" text-anchor="middle" font-size="10" fill="#92400e">8kHz, 20ms packets</text>
+
+  <!-- Arrow: Caller → NLB -->
+  <line x1="250" y1="95" x2="320" y2="95" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="285" y="85" text-anchor="middle" font-size="9" fill="#64748b">UDP</text>
+
+  <!-- AWS Cloud boundary -->
+  <rect x="310" y="45" width="770" height="760" rx="12" fill="none" stroke="#94a3b8" stroke-width="1" stroke-dasharray="6,4"/>
+  <text x="330" y="63" font-size="11" font-weight="600" fill="#64748b">AWS Cloud (us-east-1)</text>
+
+  <!-- VPC boundary -->
+  <rect x="330" y="75" width="730" height="530" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="350" y="95" font-size="12" font-weight="600" fill="#1d4ed8">VPC: voice-agent-sip</text>
+  <text x="350" y="110" font-size="10" fill="#3b82f6">10.0.0.0/16 • 2 AZs</text>
+
+  <!-- Public Subnet -->
+  <rect x="350" y="120" width="690" height="340" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.2"/>
+  <text x="370" y="140" font-size="11" font-weight="600" fill="#065f46">Public Subnet</text>
+  <text x="370" y="155" font-size="10" fill="#047857">AZ-a: 10.0.0.0/24 • AZ-b: 10.0.1.0/24 • Internet Gateway • NAT Gateway • Public IP auto-assign</text>
+
+  <!-- NLB -->
+  <rect x="370" y="170" width="200" height="90" rx="6" fill="#fff" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="470" y="190" text-anchor="middle" font-size="12" font-weight="600" fill="#4338ca">Network Load Balancer</text>
+  <text x="470" y="207" text-anchor="middle" font-size="10" fill="#6366f1">Internet-facing • Cross-zone</text>
+  <text x="470" y="224" text-anchor="middle" font-size="10" fill="#4338ca">Listener: UDP 5060 (SIP)</text>
+  <text x="470" y="239" text-anchor="middle" font-size="10" fill="#4338ca">Listener: UDP 20000 (RTP)</text>
+  <text x="470" y="254" text-anchor="middle" font-size="10" fill="#6366f1">Health Check: TCP 3000</text>
+
+  <!-- Arrow: NLB → EKS Node -->
+  <line x1="570" y1="215" x2="620" y2="215" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- EKS Cluster -->
+  <rect x="620" y="165" width="400" height="280" rx="8" fill="#faf5ff" stroke="#a855f7" stroke-width="1.2"/>
+  <text x="640" y="185" font-size="11" font-weight="600" fill="#6b21a8">EKS Cluster: voice-agent-sip (v1.31)</text>
+  <text x="640" y="200" font-size="10" fill="#7c3aed">Endpoint: Public + Private</text>
+
+  <!-- EKS Node -->
+  <rect x="640" y="210" width="360" height="220" rx="6" fill="#fff" stroke="#d946ef" stroke-width="1"/>
+  <text x="660" y="230" font-size="11" font-weight="600" fill="#86198f">Managed Node Group: SipNodes</text>
+  <text x="660" y="245" font-size="10" fill="#a21caf">t3.medium • AL2023 • Public Subnet • hostNetwork</text>
+  <text x="660" y="260" font-size="10" fill="#a21caf">Labels: role=sip • DaemonSet scheduling</text>
+
+  <!-- DaemonSet pods -->
+  <text x="660" y="280" font-size="10" font-weight="600" fill="#64748b">DaemonSet: sip-bridge (namespace: sip)</text>
+
+  <!-- drachtio container -->
+  <rect x="660" y="290" width="155" height="60" rx="4" fill="#dbeafe" stroke="#3b82f6" stroke-width="1"/>
+  <text x="737" y="307" text-anchor="middle" font-size="10" font-weight="600" fill="#1e40af">drachtio</text>
+  <text x="737" y="320" text-anchor="middle" font-size="9" fill="#3b82f6">SIP Server</text>
+  <text x="737" y="333" text-anchor="middle" font-size="9" fill="#1e40af">UDP/TCP 5060</text>
+  <text x="737" y="345" text-anchor="middle" font-size="9" fill="#3b82f6">Admin: TCP 9022</text>
+
+  <!-- rtpengine container -->
+  <rect x="660" y="358" width="155" height="60" rx="4" fill="#e0e7ff" stroke="#818cf8" stroke-width="1"/>
+  <text x="737" y="375" text-anchor="middle" font-size="10" font-weight="600" fill="#3730a3">rtpengine</text>
+  <text x="737" y="388" text-anchor="middle" font-size="9" fill="#6366f1">RTP proxy (standby)</text>
+  <text x="737" y="401" text-anchor="middle" font-size="9" fill="#3730a3">UDP 20000-20100</text>
+  <text x="737" y="414" text-anchor="middle" font-size="9" fill="#6366f1">Control: TCP 22222</text>
+
+  <!-- bridge container -->
+  <rect x="830" y="290" width="155" height="128" rx="4" fill="#d1fae5" stroke="#10b981" stroke-width="1"/>
+  <text x="907" y="307" text-anchor="middle" font-size="10" font-weight="600" fill="#065f46">SIP Bridge</text>
+  <text x="907" y="320" text-anchor="middle" font-size="9" fill="#047857">Node.js • drachtio-srf</text>
+  <text x="907" y="337" text-anchor="middle" font-size="9" fill="#065f46">Health: TCP 3000</text>
+  <text x="907" y="354" text-anchor="middle" font-size="9" fill="#047857">μ-law ↔ PCM conversion</text>
+  <text x="907" y="371" text-anchor="middle" font-size="9" fill="#047857">8kHz ↔ 16kHz resample</text>
+  <text x="907" y="388" text-anchor="middle" font-size="9" fill="#047857">RTP direct UDP socket</text>
+  <text x="907" y="405" text-anchor="middle" font-size="9" fill="#065f46">SigV4 presigned WSS</text>
+
+  <!-- Arrow: drachtio → bridge -->
+  <line x1="815" y1="320" x2="830" y2="320" stroke="#3b82f6" stroke-width="1" marker-end="url(#arrow-blue)"/>
+
+  <!-- Private Subnet -->
+  <rect x="350" y="470" width="690" height="60" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="1"/>
+  <text x="370" y="490" font-size="11" font-weight="600" fill="#991b1b">Private Subnet</text>
+  <text x="370" y="505" font-size="10" fill="#dc2626">AZ-a: 10.0.2.0/24 • AZ-b: 10.0.3.0/24 • Route: 0.0.0.0/0 → NAT Gateway</text>
+  <text x="370" y="520" font-size="10" fill="#991b1b">Used for: EKS control plane ENIs, outbound internet via NAT</text>
+
+  <!-- Security Group box -->
+  <rect x="350" y="545" width="690" height="48" rx="6" fill="#fff7ed" stroke="#f97316" stroke-width="1.2"/>
+  <text x="370" y="563" font-size="11" font-weight="600" fill="#9a3412">Security Group: SipNodeSG</text>
+  <text x="370" y="580" font-size="10" fill="#c2410c">Inbound: UDP 5060 (SIP) + TCP 5060 + UDP 20000-20100 (RTP) from 0.0.0.0/0 • TCP 3000 (health) • Outbound: All</text>
+
+  <!-- IAM Role box -->
+  <rect x="330" y="615" width="730" height="50" rx="6" fill="#fefce8" stroke="#ca8a04" stroke-width="1"/>
+  <text x="350" y="635" font-size="11" font-weight="600" fill="#854d0e">IAM: EKS Node Role</text>
+  <text x="350" y="650" font-size="10" fill="#a16207">bedrock-agentcore:* (all resources) • dynamodb:Scan/GetItem/Query (voice-agent-poc-demos table)</text>
+
+  <!-- AgentCore (outside VPC) -->
+  <rect x="330" y="680" width="360" height="105" rx="8" fill="#fff" stroke="#0ea5e9" stroke-width="1.5"/>
+  <text x="510" y="702" text-anchor="middle" font-size="13" font-weight="600" fill="#0369a1">Amazon Bedrock AgentCore</text>
+  <text x="510" y="718" text-anchor="middle" font-size="10" fill="#0284c7">Bidirectional Runtime (WebSocket)</text>
+  <text x="510" y="738" text-anchor="middle" font-size="11" fill="#0369a1">BidiAgent + Nova 2 Sonic</text>
+  <text x="510" y="755" text-anchor="middle" font-size="10" fill="#0284c7">wss://bedrock-agentcore.us-east-1.amazonaws.com</text>
+  <text x="510" y="772" text-anchor="middle" font-size="10" fill="#0284c7">PCM 16kHz bidirectional audio</text>
+
+  <!-- Arrow: Bridge → AgentCore -->
+  <path d="M907,418 L907,450 L510,450 L510,480 L510,550 L510,615 L510,680" fill="none" stroke="#10b981" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+  <text x="540" y="640" font-size="9" fill="#10b981">WSS (SigV4 presigned)</text>
+
+  <!-- DynamoDB -->
+  <rect x="750" y="700" width="180" height="65" rx="6" fill="#fff" stroke="#f59e0b" stroke-width="1.2"/>
+  <text x="840" y="720" text-anchor="middle" font-size="11" font-weight="600" fill="#92400e">DynamoDB</text>
+  <text x="840" y="736" text-anchor="middle" font-size="10" fill="#b45309">voice-agent-poc-demos</text>
+  <text x="840" y="752" text-anchor="middle" font-size="10" fill="#92400e">Agent config lookup</text>
+
+  <!-- Legend -->
+  <rect x="30" y="700" width="260" height="105" rx="6" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="50" y="720" font-size="11" font-weight="600" fill="#334155">Ports Summary</text>
+  <text x="50" y="738" font-size="10" fill="#475569">UDP 5060 — SIP signaling</text>
+  <text x="50" y="754" font-size="10" fill="#475569">UDP 20000-20100 — RTP media</text>
+  <text x="50" y="770" font-size="10" fill="#475569">TCP 3000 — Bridge health check</text>
+  <text x="50" y="786" font-size="10" fill="#475569">TCP 9022 — drachtio admin</text>
+  <text x="50" y="802" font-size="10" fill="#475569">TCP 22222 — rtpengine control</text>
+
+  <!-- Flow labels on external arrow -->
+  <text x="285" y="100" text-anchor="middle" font-size="9" fill="#64748b">5060</text>
+</svg>
