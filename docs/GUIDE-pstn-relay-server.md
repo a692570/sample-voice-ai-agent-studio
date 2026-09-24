@@ -118,14 +118,16 @@ CloudFront sits in front of the ALB to provide:
 
 | Table | Purpose |
 |-------|---------|
-| `voice-agent-poc-demos` | Agent configurations (voice, prompt, tools) |
-| `voice-agent-poc-phone-mappings` | Phone number → demo assignment |
+| `voice-agent-poc-demos` | Agent configurations (voice, prompt, tools). The bridge scans this table and routes a call by matching the dialed number against each demo's `config.telephony.phoneNumber`. |
+
+The bridge does not use a separate phone-mappings table — number → agent routing
+is derived from the demo configs' `telephony.phoneNumber` field.
 
 ### IAM: Task Role
 
 ```
 bedrock-agentcore:*                → Presign WebSocket URLs, invoke runtime
-dynamodb:GetItem/Query/Scan/Put    → Read/write demo configs and phone mappings
+dynamodb:GetItem/Scan               → Read demo configs from voice-agent-poc-demos
 sts:GetCallerIdentity              → SigV4 presigning
 ```
 
@@ -148,7 +150,7 @@ Twilio Media Stream event: {"event": "media", "media": {"payload": "<base64 μ-l
 ```
 AgentCore WebSocket: {"type": "bidi_audio_stream", "audio": "<base64 PCM 16kHz>"}
   → base64 decode
-  → downsample 16kHz → 8kHz (or 24kHz → 8kHz depending on agent output rate)
+  → downsample 16kHz → 8kHz
   → encode to μ-law
   → base64 encode
   → Twilio Media Stream: {"event": "media", "streamSid": "...", "media": {"payload": "..."}}
