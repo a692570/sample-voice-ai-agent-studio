@@ -59,7 +59,9 @@ class PreStack(Stack):
                     "<p><strong>Username:</strong> {username}<br/>"
                     "<strong>Password:</strong> {####}</p>"
                     "<p>You will be asked to set a new password on first login.</p>"
-                    "<p><em>Contact your administrator for the sign-in URL.</em></p>"
+                    "<p>Your administrator will share the sign-in URL separately "
+                    "(it is printed at the end of the deployment). Open that URL and "
+                    "log in with the username and temporary password above.</p>"
                 ),
             ),
             removal_policy=RemovalPolicy.DESTROY,
