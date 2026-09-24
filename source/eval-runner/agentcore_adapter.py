@@ -188,6 +188,7 @@ class AgentCoreStreamManager:
             "agentStartFirst": True,  # Agent greets first — warms up Nova Sonic stream
             "tools": self.agent_config.get("tools", []),
             "customTools": self.agent_config.get("customTools", []),
+            "reasonerModel": self.agent_config.get("reasonerModel", ""),
             "useMock": self.agent_config.get("useMock", True),
             "greeting": json.dumps({"customTools": self.agent_config.get("customTools", [])}) if self.agent_config.get("customTools") else "",
         }

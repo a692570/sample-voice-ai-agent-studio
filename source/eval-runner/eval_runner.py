@@ -475,6 +475,15 @@ def run_eval(event):
         snapshot_model_id = job.get("agentSnapshot", {}).get("modelId")
         if snapshot_model_id:
             agent_config["modelId"] = snapshot_model_id
+        # Inject reasonerModel from job snapshot (eval-specific override for Expert Tool mode)
+        snapshot_reasoner = job.get("agentSnapshot", {}).get("inferenceConfig", {}).get("reasonerModel", "")
+        if snapshot_reasoner:
+            agent_config["reasonerModel"] = snapshot_reasoner
+        elif not agent_config.get("reasonerModel"):
+            # Fall back to agent's own inferenceConfig
+            agent_reasoner = agent_config.get("inferenceConfig", {}).get("reasonerModel", "")
+            if agent_reasoner:
+                agent_config["reasonerModel"] = agent_reasoner
     else:
         # Eval suite run — agent config was snapshotted in the job record by eval_handler
         agent_snapshot = job.get("agentSnapshot", {})
@@ -511,6 +520,10 @@ def run_eval(event):
         # Pass through modelId if specified (Sonic model override)
         if agent_snapshot.get("modelId"):
             agent_config["modelId"] = agent_snapshot["modelId"]
+        # Pass through reasonerModel for Expert Tool mode
+        reasoner = agent_snapshot.get("inferenceConfig", {}).get("reasonerModel", "")
+        if reasoner:
+            agent_config["reasonerModel"] = reasoner
 
     # Map to TestConfig
     try:

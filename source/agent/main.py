@@ -596,7 +596,7 @@ async def websocket_handler(websocket, request_context=None):
         agent.add_hook(_on_before_tool, BeforeToolCallEvent)
         agent.add_hook(_on_after_tool, AfterToolCallEvent)
 
-        logger.info(f"Agent ready [v20]: voice={voice_id}")
+        logger.info(f"Agent ready [v25]: voice={voice_id}")
 
         # Acknowledge
         await websocket.send_text(json.dumps({
@@ -607,84 +607,157 @@ async def websocket_handler(websocket, request_context=None):
         # Run bidirectional streaming
         first_input = True
         _tool_executing = False  # Flag to block audio during tool calls
+        _audio_msg_count = 0  # Diagnostic: count of audio input messages received
+        # Text-driven sessions (eval harness) send a continuous silent-audio
+        # keep-alive PLUS occasional text turns. Two constraints must both hold:
+        #   1) Right after a text turn, pause the keep-alive audio briefly so Nova
+        #      Sonic sees a turn boundary and generates a response (continuous
+        #      audio would keep the user's audio turn open and suppress replies).
+        #   2) Don't stop the keep-alive for too long: Nova Sonic aborts the
+        #      stream if it receives no audio/interactive content for >55s.
+        # So we suppress keep-alive audio only for a short window after each text
+        # turn, then resume it to keep the connection alive.
+        import time as _time
+        _suppress_audio_until = 0.0  # monotonic deadline; drop keep-alive audio until then
+        _TEXT_AUDIO_SUPPRESS_SECONDS = 8.0  # well under Nova Sonic's 55s idle limit
 
         async def handle_input():
-            nonlocal first_input, _tool_executing
+            nonlocal first_input, _tool_executing, _audio_msg_count, _suppress_audio_until
             # On first call, trigger agent to speak first based on system prompt
             if first_input and agent_start_first:
                 first_input = False
                 await agent.send("hi")
 
-            raw_msg = await websocket.receive_text()
-            message = json.loads(raw_msg)
-            msg_type = message.get("type", "")
+            # Loop (not recursion) until we have a message worth returning to the
+            # BidiAgent. Messages we intentionally skip (dropped keep-alive audio,
+            # empty/unknown events) just `continue` — recursing here would blow the
+            # Python recursion limit under the eval's ~10 msg/sec silent-audio stream.
+            while True:
+                raw_msg = await websocket.receive_text()
+                message = json.loads(raw_msg)
+                msg_type = message.get("type", "")
 
-            if msg_type == "sessionEnd":
-                logger.info("Client requested session end")
-                session_ended = True
-                # Send acknowledgment and close - finalize happens in finally block
-                await websocket.send_text(json.dumps({
-                    "type": "sessionEnd",
-                    "reason": "client_ended",
-                    "message": "Client ended the session.",
-                }))
-                await websocket.close(1000, "client_ended")
-                return None
-                await websocket.send_text(json.dumps({
-                    "type": "sessionEnd",
-                    "reason": "client_ended",
-                    "message": "Client ended the session.",
-                }))
-                await websocket.close(1000, "client_ended")
-                return None
-            if msg_type == "bidi_audio_input":
-                # Drop audio during tool execution to prevent Nova Sonic stream death
-                if _tool_executing:
-                    # Silently consume the message — don't forward to BidiAgent/Nova Sonic
-                    return await handle_input()  # Get next message instead
-                # Capture user audio for call history (per-turn)
-                if call_logger and message.get("audio"):
-                    import base64
+                # ── Diagnostic input routing (rate-limited for audio) ──────
+                # Audio arrives ~10/sec; log only every 50th to avoid spam, but
+                # always log non-audio types (text_input, sessionEnd, etc.).
+                if msg_type in ("bidi_audio_input",):
+                    _audio_msg_count += 1
+                    if _audio_msg_count % 50 == 1:
+                        logger.info(f"[input] audio message #{_audio_msg_count} (tool_executing={_tool_executing})")
+                else:
+                    _preview = message.get("text", "")[:80] if isinstance(message.get("text"), str) else ""
+                    logger.info(f"[input] non-audio message type={msg_type!r} text={_preview!r}")
+
+                if msg_type == "sessionEnd":
+                    logger.info("Client requested session end")
+                    session_ended = True
+                    await websocket.send_text(json.dumps({
+                        "type": "sessionEnd",
+                        "reason": "client_ended",
+                        "message": "Client ended the session.",
+                    }))
+                    await websocket.close(1000, "client_ended")
+                    return None
+
+                if msg_type == "bidi_audio_input":
+                    # Drop audio during tool execution to prevent Nova Sonic stream death
+                    if _tool_executing:
+                        continue  # Skip — get next message
+                    # Briefly after a text turn, drop the keep-alive audio so Nova
+                    # Sonic sees end-of-input and responds. Outside that window we
+                    # DO forward keep-alive audio so the stream stays under Nova
+                    # Sonic's 55s idle timeout.
+                    if _suppress_audio_until and _time.monotonic() < _suppress_audio_until:
+                        continue
+                    # Capture user audio for call history (per-turn)
+                    if call_logger and message.get("audio"):
+                        import base64
+                        try:
+                            user_audio = base64.b64decode(message["audio"])
+                            call_logger._current_user_chunks.append(user_audio)
+                            if len(call_logger._current_user_chunks) == 1:
+                                logger.info(f"[user_audio] First chunk captured: {len(user_audio)} bytes, first 10 bytes: {user_audio[:10].hex()}")
+                        except Exception as e:
+                            logger.warning(f"[user_audio] decode error: {e}")
+                    # strands 1.57.0 input contract: send an audio_delta dict with the
+                    # RAW audio bytes (base64-decoded), not the browser's base64 string.
+                    import base64 as _b64
                     try:
-                        user_audio = base64.b64decode(message["audio"])
-                        call_logger._current_user_chunks.append(user_audio)
-                        # Log first capture for debugging
-                        if len(call_logger._current_user_chunks) == 1:
-                            logger.info(f"[user_audio] First chunk captured: {len(user_audio)} bytes, first 10 bytes: {user_audio[:10].hex()}")
-                    except Exception as e:
-                        logger.warning(f"[user_audio] decode error: {e}")
-                # strands 1.57.0 input contract: send an audio_delta dict with the
-                # RAW audio bytes (base64-decoded), not the browser's base64 string.
-                import base64 as _b64
-                try:
-                    _audio_bytes = _b64.b64decode(message.get("audio", ""))
-                except Exception:
-                    _audio_bytes = b""
-                return {
-                    "audio_delta": {
-                        "format": message.get("format", "pcm"),
-                        "source": {"bytes": _audio_bytes},
+                        _audio_bytes = _b64.b64decode(message.get("audio", ""))
+                    except Exception:
+                        _audio_bytes = b""
+                    return {
+                        "audio_delta": {
+                            "format": message.get("format", "pcm"),
+                            "source": {"bytes": _audio_bytes},
+                        }
                     }
-                }
-            elif msg_type in ("bidi_text_input", "text_input"):
-                text = message.get("text", "")
-                if text:
-                    # Return text string — BidiAgent processes it as text input
-                    # (transcript is captured from bidi_transcript_stream in send_output)
-                    return text
-                # Empty text — skip and get next message
-                return await handle_input()
-            else:
-                # Unknown message type — skip it and wait for next valid input
-                # (prevents BidiAgent crash on unrecognized event types)
-                return await handle_input()
+                elif msg_type in ("bidi_text_input", "text_input"):
+                    text = message.get("text", "")
+                    if text:
+                        # Open a short suppression window so the keep-alive audio
+                        # pauses and Nova Sonic can respond to this text turn.
+                        _suppress_audio_until = _time.monotonic() + _TEXT_AUDIO_SUPPRESS_SECONDS
+                        logger.info(f"[input] text turn — pausing keep-alive audio for {_TEXT_AUDIO_SUPPRESS_SECONDS}s so Sonic can respond")
+                        # Return text string — BidiAgent processes it as text input
+                        # (transcript is captured from bidi_transcript_stream in send_output)
+                        return text
+                    # Empty text — skip and get next message
+                    continue
+                else:
+                    # Unknown message type — skip it and wait for next valid input
+                    # (prevents BidiAgent crash on unrecognized event types)
+                    continue
 
         session_ended = False
 
+        _output_audio_count = 0  # diagnostic: rate-limit audio-output logging
+
         async def send_output(event_dict):
-            nonlocal session_ended
+            nonlocal session_ended, _output_audio_count
             if session_ended:
                 return
+
+            # ── Diagnostic output logging ─────────────────────────────────
+            # Log every non-audio event Nova Sonic emits so we can see whether
+            # the model is actually producing responses (transcript/tool/etc.).
+            if isinstance(event_dict, dict):
+                _evt_type = event_dict.get("type", "")
+                if _evt_type in ("bidi_audio_output", "audio_output"):
+                    _output_audio_count += 1
+                    if _output_audio_count % 50 == 1:
+                        logger.info(f"[output] audio_output #{_output_audio_count}")
+                else:
+                    _txt = event_dict.get("transcript") or event_dict.get("delta") or event_dict.get("current_transcript") or event_dict.get("content") or ""
+                    logger.info(f"[output] event type={_evt_type!r} role={event_dict.get('role','')!r} text={str(_txt)[:80]!r}")
+
+            # ── Normalize Strands 1.57 transcript events to the shape clients
+            # expect. Strands emits:
+            #   bidi_transcript_stream   -> {"delta": <partial text>, "role": ...}
+            #   bidi_transcript_complete -> {"transcript": <full text>, "role": ...}
+            # But the eval adapter and the browser UI read
+            #   bidi_transcript_stream   -> {"text": ..., "is_final": bool, "role": ...}
+            # So rewrite in place before logging/forwarding. Without this the
+            # transcript is never captured (0 turns) and the eval sees no reply.
+            if isinstance(event_dict, dict):
+                _t = event_dict.get("type", "")
+                if _t == "bidi_transcript_stream" and "text" not in event_dict:
+                    event_dict = {
+                        "type": "bidi_transcript_stream",
+                        "role": event_dict.get("role", "assistant"),
+                        "text": event_dict.get("delta", ""),
+                        "current_transcript": event_dict.get("delta", ""),
+                        "is_final": False,
+                    }
+                elif _t == "bidi_transcript_complete":
+                    _full = event_dict.get("transcript", "")
+                    event_dict = {
+                        "type": "bidi_transcript_stream",
+                        "role": event_dict.get("role", "assistant"),
+                        "text": _full,
+                        "current_transcript": _full,
+                        "is_final": True,
+                    }
 
             # Check for session control signals from built-in tools
             content = str(event_dict.get("content", ""))
@@ -761,7 +834,7 @@ async def websocket_handler(websocket, request_context=None):
         await agent.run(inputs=[handle_input], outputs=[send_output])
 
     except Exception as e:
-        logger.error(f"Session error: {e}")
+        logger.exception(f"Session error [{type(e).__name__}]: {e!r}")
         try:
             await websocket.send_text(json.dumps({"type": "error", "message": str(e)}))
         except Exception:

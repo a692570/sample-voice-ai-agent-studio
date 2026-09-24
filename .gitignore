@@ -1,0 +1,29 @@
+# Temporary top-level clone of the harness (superseded by the vendored copy at
+# source/eval-runner/nova-sonic-eval-harness/). Ignored so a stray clone here
+# isn't committed. The vendored copy under source/ IS committed.
+/nova-sonic-eval-harness/
+
+# Generated Lambda bundle for the eval runner (built by source/eval-runner/bundle.sh).
+/source/eval-runner/bundled/
+
+# Reference/working eval bundle copied to the repo root for debugging only.
+# Not part of the source — safe to delete.
+/bundled/
+
+# Generated agent runtime bundle (built by the CDK AgentStack at deploy time).
+/source/agent/package/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# CDK
+deployment/cdk.out/
+deployment/.venv/
+
+# Node / frontend
+node_modules/
+source/frontend/dist/
+source/frontend/.env.local
+source/frontend/.env.production
