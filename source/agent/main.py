@@ -19,6 +19,79 @@ BEDROCK_REGION = os.environ.get("BEDROCK_REGION", "us-east-1")
 MODEL_ID = os.environ.get("MODEL_ID", "amazon.nova-2-sonic-v1:0")
 VOICE = os.environ.get("VOICE", "tiffany")
 
+# Concrete provider model IDs for the wizard's abstract selections. Override the
+# defaults with env vars when providers ship new versions.
+OPENAI_REALTIME_MODEL_ID = os.environ.get("OPENAI_REALTIME_MODEL_ID", "gpt-realtime")
+GEMINI_LIVE_MODEL_ID = os.environ.get("GEMINI_LIVE_MODEL_ID", "gemini-2.5-flash-native-audio-preview-09-2025")
+
+
+def create_model(selected_model, api_keys, voice_id, sonic_model_id, params=None):
+    """Create the bidirectional speech-to-speech model for the selected provider.
+
+    Returns a tuple ``(model, output_sample_rate)``. The sample rate tells the
+    client which rate to play/capture audio at (Nova Sonic = 16 kHz;
+    OpenAI Realtime and Gemini Live = 24 kHz).
+
+    Providers are selected by the wizard's abstract model id:
+      - "openai-realtime" → OpenAI Realtime API (needs an OpenAI API key)
+      - "gemini-live"     → Google Gemini Live API (needs a Google API key)
+      - anything else     → Amazon Nova 2 Sonic (default; no API key needed)
+
+    Raises ValueError if the chosen provider's API key is missing — we fail
+    loudly rather than silently falling back to Nova Sonic, so the user knows
+    their selection didn't take effect.
+    """
+    from strands.experimental.bidi.models import (
+        BedrockNovaSonicModel,
+        OpenAIRealtimeModel,
+        GoogleGeminiLiveModel,
+    )
+
+    params = params or {}
+    _extra = {"params": params} if params else {}
+
+    if selected_model == "openai-realtime":
+        api_key = (api_keys or {}).get("openai") or os.environ.get("OPENAI_API_KEY", "")
+        if not api_key:
+            raise ValueError("OpenAI Realtime selected but no OpenAI API key was provided.")
+        # OpenAI Realtime is fixed at 24 kHz PCM in/out.
+        model = OpenAIRealtimeModel(
+            api_key=api_key,
+            voice=voice_id or "alloy",
+            model_id=OPENAI_REALTIME_MODEL_ID,
+            **_extra,
+        )
+        return model, 24000
+
+    if selected_model == "gemini-live":
+        api_key = (api_keys or {}).get("gemini") or os.environ.get("GOOGLE_API_KEY", "")
+        if not api_key:
+            raise ValueError("Gemini Live selected but no Google API key was provided.")
+        # Gemini Live: input 16 kHz, output always 24 kHz. Use 24 kHz on the
+        # client so playback matches the output stream.
+        model = GoogleGeminiLiveModel(
+            client_args={"api_key": api_key},
+            voice=voice_id or None,
+            audio={"input": {"sample_rate": 16000}},
+            model_id=GEMINI_LIVE_MODEL_ID,
+            **_extra,
+        )
+        return model, 24000
+
+    # Default: Amazon Nova 2 Sonic (16 kHz in/out).
+    model = BedrockNovaSonicModel(
+        region=BEDROCK_REGION,
+        model_id=sonic_model_id,
+        voice=voice_id,
+        audio={
+            "input": {"sample_rate": 16000},
+            "output": {"sample_rate": 16000},
+        },
+        **_extra,
+    )
+    return model, 16000
+
+
 app = BedrockAgentCoreApp()
 
 
@@ -45,17 +118,23 @@ async def websocket_handler(websocket, request_context=None):
         if config_msg.get('customTools'):
             logger.info(f"CustomTools received: {[t.get('name','?') for t in config_msg.get('customTools',[])]}")
         else:
-            logger.warning(f"No customTools in session config! Full config (truncated): {json.dumps(config_msg, default=str)[:500]}")
+            # Redact apiKeys before logging — never write provider API keys to logs.
+            _safe_config = {**config_msg}
+            if "apiKeys" in _safe_config:
+                _safe_config["apiKeys"] = "***redacted***"
+            logger.warning(f"No customTools in session config! Full config (truncated): {json.dumps(_safe_config, default=str)[:500]}")
 
         # Import and create BidiAgent
         from strands.experimental.bidi import BidiAgent
-        from strands.experimental.bidi.models import BedrockNovaSonicModel
 
         voice_id = config_msg.get("voice", {}).get("voiceId", VOICE) or VOICE
         system_prompt = config_msg.get("systemPrompt", "You are a helpful voice assistant.")
         agent_start_first = config_msg.get("agentStartFirst", True)
         sonic_model_id = config_msg.get("modelId", MODEL_ID) or MODEL_ID
         inference_config = config_msg.get("inferenceConfig", {})
+        # Selected speech-to-speech provider ("nova-2-sonic" | "openai-realtime" | "gemini-live").
+        selected_model = (config_msg.get("model") or ["nova-2-sonic"])[0]
+        api_keys = config_msg.get("apiKeys", {}) or {}
 
         # ── Initialize call history logger (enabled by default) ────────────────────
         if config_msg.get("callHistoryEnabled", True) is not False:
@@ -524,8 +603,7 @@ async def websocket_handler(websocket, request_context=None):
 
         logger.info(f"Tools loaded: {len(tools)} total (including 2 built-in)")
 
-        # ── Create the Nova Sonic model (direct mode) ─────────────────────
-        # Nova Sonic handles ASR/TTS and reasons over tools directly.
+        # ── Create the speech-to-speech model for the selected provider ───
         _params = {}
         if inference_config:
             _params = {k: v for k, v in {
@@ -534,16 +612,14 @@ async def websocket_handler(websocket, request_context=None):
                 "max_tokens": inference_config.get("maxTokens"),
             }.items() if v is not None}
 
-        model = BedrockNovaSonicModel(
-            region=BEDROCK_REGION,
-            model_id=sonic_model_id,
-            voice=voice_id,
-            audio={
-                "input": {"sample_rate": 16000},
-                "output": {"sample_rate": 16000},
-            },
-            **({"params": _params} if _params else {}),
+        model, model_sample_rate = create_model(
+            selected_model=selected_model,
+            api_keys=api_keys,
+            voice_id=voice_id,
+            sonic_model_id=sonic_model_id,
+            params=_params,
         )
+        logger.info(f"Model created: provider={selected_model}, output_sample_rate={model_sample_rate}")
         agent = BidiAgent(
             model=model,
             tools=tools if tools else [],
@@ -596,12 +672,16 @@ async def websocket_handler(websocket, request_context=None):
         agent.add_hook(_on_before_tool, BeforeToolCallEvent)
         agent.add_hook(_on_after_tool, AfterToolCallEvent)
 
-        logger.info(f"Agent ready [v25]: voice={voice_id}")
+        logger.info(f"Agent ready [v26]: provider={selected_model}, voice={voice_id}, sample_rate={model_sample_rate}")
 
-        # Acknowledge
+        # Acknowledge. Include the model's output sample rate so the client can
+        # play audio back at the correct rate (Nova 16 kHz, OpenAI/Gemini 24 kHz).
         await websocket.send_text(json.dumps({
             "type": "system",
-            "message": f"Ready: {sonic_model_id} with voice={voice_id}",
+            "message": f"Ready: {selected_model} with voice={voice_id}",
+            "provider": selected_model,
+            "outputSampleRate": model_sample_rate,
+            "inputSampleRate": model_sample_rate,
         }))
 
         # Run bidirectional streaming

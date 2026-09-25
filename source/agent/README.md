@@ -1,6 +1,6 @@
 # Agent — Voice AI POC-in-a-Box
 
-WebSocket voice agent server powered by Strands Agents BidiAgent and Amazon Nova 2 Sonic. Receives configuration from the frontend UI (system prompt, voice, tools, pipeline) and provides bidirectional audio streaming.
+WebSocket voice agent server powered by Strands Agents BidiAgent. Receives configuration from the frontend UI (system prompt, voice, tools, model) and provides bidirectional audio streaming. Supports three speech-to-speech providers, selected per session: **Amazon Nova 2 Sonic** (default, no key), **OpenAI Realtime** (bring your own key), and **Google Gemini Live** (bring your own key). Provider selection happens in `create_model()`.
 
 ## Prerequisites
 
@@ -42,6 +42,10 @@ Expected response:
 |----------|---------|-------------|
 | `BEDROCK_REGION` | `us-east-1` | AWS region for Bedrock model calls |
 | `MODEL_ID` | `amazon.nova-2-sonic-v1:0` | Nova Sonic model ID |
+| `OPENAI_REALTIME_MODEL_ID` | `gpt-realtime` | OpenAI Realtime model ID |
+| `GEMINI_LIVE_MODEL_ID` | `gemini-2.5-flash-native-audio-preview-09-2025` | Gemini Live model ID |
+| `OPENAI_API_KEY` | — | Fallback OpenAI key (per-session key from the UI takes precedence) |
+| `GOOGLE_API_KEY` | — | Fallback Google key (per-session key from the UI takes precedence) |
 | `PORT` | `8081` | Server port |
 
 Example with custom region:
@@ -80,7 +84,7 @@ The frontend connects and sends a `sessionConfig` JSON event as the first messag
 | `clientId` | string | UUID generated per session |
 | `host` | string | `agentcore`, `eks`, `ecs` |
 | `framework` | string | `strands-bidiagent`, `pipecat`, `livekit` |
-| `model` | string[] | `nova-2-sonic`, `transcribe`, `polly`, `11labs`, `deepgram`, `nova-lite`, `gpt` |
+| `model` | string[] | First entry selects the provider: `nova-2-sonic`, `openai-realtime`, or `gemini-live` |
 | `systemPrompt` | string | Generated from prompt builder |
 | `tools` | string[] | Tool IDs selected in the UI |
 | `voice` | object | `voiceId`, `language`, `gender` |

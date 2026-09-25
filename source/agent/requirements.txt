@@ -5,7 +5,14 @@
 # (audio input moved from BidiAudioInputEvent to the audio_delta contract).
 # main.py / strands_agent.py are written against 1.57.0's input contract, so
 # pin exactly to keep local dev and every deploy on the same known-good API.
-strands-agents[bidi]==1.57.0
+#
+# Extras:
+#   bidi         — Nova Sonic speech-to-speech (aws-sdk-bedrock-runtime, awscrt)
+#   bidi-openai  — OpenAI Realtime API (uses raw websockets; no openai SDK)
+#   bidi-google  — Google Gemini Live API (pulls google-genai)
+# All three model providers are selectable in the wizard and wired in main.py /
+# strands_agent.py via create_model().
+strands-agents[bidi,bidi-openai,bidi-google]==1.57.0
 bedrock-agentcore>=1.0.0
 boto3>=1.43.0
 mcp>=1.0.0

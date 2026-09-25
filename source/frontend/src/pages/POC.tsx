@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useWizard } from '../context/WizardContext';
 import { useAuth } from '../context/AuthContext';
-import { createDemo, getDemo, wizardStateToConfig } from '../services/demosApi';
+import { createDemo, updateDemo, getDemo, wizardStateToConfig } from '../services/demosApi';
 import { getAgentCoreWsUrl } from '../services/presignWs';
 import { listTools } from '../services/toolsApi';
 import type { SavedTool } from '../services/toolsApi';
@@ -152,6 +152,15 @@ function POC() {
       case 'sessionReady':
       case 'system':
         console.log('System:', data.message || data.config);
+        // The agent reports the model's audio sample rate so we play/capture at
+        // the right rate (Nova Sonic 16 kHz; OpenAI Realtime / Gemini Live 24 kHz).
+        if (typeof data.outputSampleRate === 'number' && data.outputSampleRate > 0) {
+          outputSampleRateRef.current = data.outputSampleRate;
+        }
+        if (typeof data.inputSampleRate === 'number' && data.inputSampleRate > 0) {
+          inputSampleRateRef.current = data.inputSampleRate;
+        }
+        readyReceivedRef.current = true;
         break;
       case 'bidi_audio_stream':
         // Audio response from Nova Sonic
@@ -245,11 +254,20 @@ function POC() {
 
   const nextPlayTimeRef = useRef(0);
   const activeSourcesRef = useRef(0);
+  // Sample rates negotiated with the agent's "system" ready message. Nova Sonic
+  // is 16 kHz; OpenAI Realtime and Gemini Live are 24 kHz. Default to 16 kHz
+  // until the agent tells us otherwise.
+  const outputSampleRateRef = useRef(16000);
+  const inputSampleRateRef = useRef(16000);
+  // Set true when the agent's "system" ready message arrives (carries the
+  // negotiated sample rates). Capture waits on this so it opens the mic at the
+  // right rate for the selected provider.
+  const readyReceivedRef = useRef(false);
 
   const playAudioBase64 = async (base64Audio: string) => {
     try {
       if (!audioPlayerRef.current) {
-        audioPlayerRef.current = new AudioContext({ sampleRate: 16000 });
+        audioPlayerRef.current = new AudioContext({ sampleRate: outputSampleRateRef.current });
         nextPlayTimeRef.current = 0;
         activeSourcesRef.current = 0;
       }
@@ -272,8 +290,8 @@ function POC() {
         float32Data[i] = int16Data[i] / 32768.0;
       }
 
-      // Create AudioBuffer
-      const buffer = audioPlayerRef.current.createBuffer(1, float32Data.length, 16000);
+      // Create AudioBuffer at the model's output rate
+      const buffer = audioPlayerRef.current.createBuffer(1, float32Data.length, outputSampleRateRef.current);
       buffer.getChannelData(0).set(float32Data);
 
       const currentTime = audioPlayerRef.current.currentTime;
@@ -314,9 +332,11 @@ function POC() {
 
   const startAudioCapture = async () => {
     try {
+      // Capture at the model's input rate (Nova 16 kHz; OpenAI/Gemini 24 kHz).
+      const captureRate = inputSampleRateRef.current || 16000;
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          sampleRate: 16000,
+          sampleRate: captureRate,
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
@@ -324,7 +344,7 @@ function POC() {
       });
       mediaStreamRef.current = stream;
 
-      const audioContext = new AudioContext({ sampleRate: 16000 });
+      const audioContext = new AudioContext({ sampleRate: captureRate });
       audioContextRef.current = audioContext;
 
       // Resume context (required by some browsers after user gesture)
@@ -350,8 +370,8 @@ function POC() {
         const rms = Math.sqrt(sum / inputData.length);
         setAudioLevel(Math.min(1, rms * 10));
 
-        // Downsample to 16kHz and convert to Int16 PCM
-        const SAMPLE_RATE = 16000;
+        // Resample to the model's input rate and convert to Int16 PCM
+        const SAMPLE_RATE = captureRate;
         const downsampleRatio = audioContext.sampleRate / SAMPLE_RATE;
         const outputLength = Math.floor(inputData.length / downsampleRatio);
         const int16Data = new Int16Array(outputLength);
@@ -615,13 +635,51 @@ function POC() {
         callerId: user?.username || user?.email || '',
       };
       console.log('[POC] Session config being sent:', { tools: builtinTools.length, customTools: allCustomTools.length, customToolNames: allCustomTools.map((t: any) => t.name) });
+      readyReceivedRef.current = false;
       ws.send(JSON.stringify(sessionConfig));
 
-      // Start audio capture
+      // Wait (briefly) for the agent's "system" ready message so we know the
+      // negotiated sample rate before opening the mic. Fall back after 3s so a
+      // missing/renamed ready message never blocks the session.
+      const readyDeadline = Date.now() + 3000;
+      while (!readyReceivedRef.current && Date.now() < readyDeadline) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+
+      // Start audio capture (at the negotiated input rate)
       await startAudioCapture();
     } catch (err: any) {
       setConnectionStatus('error');
       setError(err?.message || 'Failed to connect to voice agent server.');
+    }
+  };
+
+  // Save (or update) the current agent to the account. Available regardless of
+  // whether telephony is configured — mirrors the Summary page's save logic.
+  const handleSaveAgent = async () => {
+    setSaving(true);
+    try {
+      if (state.editingDemoId) {
+        // Editing an existing agent — update it in place.
+        await updateDemo(state.editingDemoId, { config: wizardStateToConfig(state) });
+      } else {
+        // New agent — prompt for a name and create it.
+        const name = window.prompt('Agent name:', state.editingDemoName || agentName || 'My Agent');
+        if (!name) {
+          setSaving(false);
+          return;
+        }
+        const created = await createDemo({ name, config: wizardStateToConfig(state) });
+        dispatch({ type: 'SET_EDITING_DEMO', payload: { id: created.id, name } });
+      }
+      setSaveSuccess(true);
+      notifyAgentListChanged();
+      // Reset the "Saved" confirmation after a moment so the button can be reused.
+      setTimeout(() => setSaveSuccess(false), 2500);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to save agent');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -675,6 +733,24 @@ function POC() {
       onBack={() => navigate('/summary')}
     >
       <div className={styles.container}>
+        {/* Save agent — available regardless of telephony/channel */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px', marginBottom: '12px' }}>
+          {saveSuccess && (
+            <span style={{ fontSize: '13px', color: '#16a34a', fontWeight: 600 }}>✓ Saved</span>
+          )}
+          <button
+            className={styles.startBtn}
+            onClick={handleSaveAgent}
+            disabled={saving}
+          >
+            {saving
+              ? 'Saving…'
+              : state.editingDemoId
+                ? '💾 Save Changes'
+                : '💾 Save Agent'}
+          </button>
+        </div>
+
         {/* Channel options — side by side */}
         <div className={styles.demoInfo}>
           <div className={styles.channelGrid}>
