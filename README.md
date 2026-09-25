@@ -45,7 +45,7 @@ higher security review bar.
 - Live voice test with real-time transcript
 
 ### Speech & Reasoning
-- Bidirectional streaming (speech-to-speech) — Amazon Nova 2 Sonic (OpenAI Realtime and Gemini Live are selectable in the UI but currently fall back to Nova Sonic)
+- Bidirectional streaming (speech-to-speech) — Amazon Nova 2 Sonic (no key needed), plus OpenAI Realtime and Google Gemini Live (bring your own API key)
 
 ### Integrations
 - Built-in reserved tools (end call, transfer to human) available to every agent
@@ -134,13 +134,23 @@ Direct SIP integration for enterprise contact centers (Genesys, Five9, NICE) or 
 
 The implemented pipeline. A single model handles speech input, reasoning, and speech output in one stream. Lowest latency — audio goes in, audio comes out, no intermediate text step required.
 
-The agent runtime (`source/agent/main.py`) builds a **Strands BidiAgent** with **Amazon Nova 2 Sonic**, which manages bidirectional WebSocket streaming, tool orchestration, and turn detection.
+The agent runtime (`source/agent/main.py`) builds a **Strands BidiAgent** with the selected speech-to-speech model, which manages bidirectional WebSocket streaming, tool orchestration, and turn detection.
 
-> **Note:** OpenAI Realtime API and Gemini Live are offered as model choices in
-> the wizard (with API-key inputs), but their Strands adapters are not yet wired
-> up — the runtime logs a warning and falls back to Nova Sonic. Nova 2 Sonic is
-> the only speech-to-speech model that actually runs today. A plan to enable
-> them lives in [docs/GUIDE-openai-gemini-support.md](docs/GUIDE-openai-gemini-support.md).
+Three providers are supported (chosen in the wizard):
+
+| Provider | Model | API key | Audio rate |
+|----------|-------|---------|------------|
+| Amazon Nova 2 Sonic | `amazon.nova-2-sonic-v1:0` | Not needed (uses the AgentCore role) | 16 kHz |
+| OpenAI Realtime | `gpt-realtime` | Required (entered in the wizard) | 24 kHz |
+| Google Gemini Live | `gemini-2.5-flash-native-audio-preview-09-2025` | Required (entered in the wizard) | 24 kHz |
+
+The runtime selects the model via `create_model()` (in `main.py` / `strands_agent.py`) and reports the model's audio sample rate to the client in the session-ready message, so the browser plays and captures audio at the right rate. Provider model IDs are overridable via the `OPENAI_REALTIME_MODEL_ID` / `GEMINI_LIVE_MODEL_ID` env vars.
+
+> **Note:** If you select OpenAI or Gemini without providing that provider's API
+> key, the session fails with a clear error (no silent fallback to Nova Sonic).
+> The **telephony** bridges (PSTN/SIP) currently assume 16 kHz audio, so OpenAI/
+> Gemini over a phone call would need the bridge sample rates updated first —
+> browser testing supports all three today.
 
 > **Cascaded pipeline (STT → LLM → TTS) is not implemented.** The wizard contains
 > disabled UI scaffolding for a cascaded workflow (a hidden `CascadedSpeech`
@@ -198,7 +208,7 @@ Backend: `source/api/eval_handler.py` and `eval_suites_handler.py` (API), `sourc
 |-----------|-----------|
 | Frontend | React 19, TypeScript, Vite, CSS Modules |
 | Agent Runtime | Python, Strands BidiAgent, AgentCore Bidirectional Runtime |
-| Speech-to-Speech | Amazon Nova 2 Sonic (Strands BidiAgent) |
+| Speech-to-Speech | Amazon Nova 2 Sonic, OpenAI Realtime, Google Gemini Live (Strands BidiAgent) |
 | Agent Hosting | Amazon Bedrock AgentCore (WebSocket, bidirectional streaming) |
 | Tool Gateways | AgentCore MCP Gateways |
 | Sub-agents | AgentCore Runtime (delegated agent invocation) |
